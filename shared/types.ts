@@ -25,6 +25,8 @@ export interface JobOptions {
   targetLang: string   // BCP-47 code e.g. "fr", "es", "zh-TW"
   downloadVideo: boolean
   outputDir: string
+  cookiesBrowser?: string  // e.g. "chrome", "firefox", "edge"
+  cookiesFile?: string     // path to a cookies.txt file
 }
 
 export interface JobResult {
@@ -66,6 +68,11 @@ export interface YtdlpStatus {
   version?: string
 }
 
+export interface FfmpegStatus {
+  found: boolean
+  path?: string
+}
+
 // ── IPC Utility ───────────────────────────────────────────────────────────────
 
 export interface IpcError {
@@ -80,18 +87,39 @@ export function isIpcError(val: unknown): val is IpcError {
 
 // ── Preload API Contract ──────────────────────────────────────────────────────
 
+export interface HistoryEntry {
+  id: string
+  date: string
+  videoTitle: string
+  videoId: string
+  thumbnailUrl: string
+  targetLang: string
+  blockCount: number
+  srtPath: string
+  vttPath: string
+  videoPath?: string
+  outputDir: string
+}
+
 export interface ElectronAPI {
   getFileServerPort: () => Promise<number>
   getVideoInfo: (url: string) => Promise<VideoInfo | IpcError>
   startJob: (options: JobOptions) => Promise<{ jobId: string } | IpcError>
   checkYtdlp: () => Promise<YtdlpStatus>
   downloadYtdlp: (onProgress: (pct: number, msg: string) => void) => Promise<{ success: boolean; path: string } | IpcError>
+  checkFfmpeg: () => Promise<FfmpegStatus>
+  downloadFfmpeg: (onProgress: (pct: number, msg: string) => void) => Promise<{ success: boolean; path: string } | IpcError>
   getDefaultOutputDir: () => Promise<string>
   selectOutputDir: () => Promise<{ path: string } | { cancelled: true }>
+  selectCookiesFile: () => Promise<{ path: string } | { cancelled: true }>
   openFolder: (path: string) => Promise<void>
   readFile: (path: string) => Promise<{ content: string } | IpcError>
   onJobProgress: (callback: (event: JobProgressEvent) => void) => () => void
   onYtdlpDownloadProgress: (callback: (pct: number, msg: string) => void) => () => void
+  loginToYoutube: () => Promise<{ cookiesFile: string } | { cancelled: true } | IpcError>
+  getHistory: () => Promise<HistoryEntry[]>
+  deleteHistoryEntry: (id: string) => Promise<void>
+  clearHistory: () => Promise<void>
 }
 
 declare global {

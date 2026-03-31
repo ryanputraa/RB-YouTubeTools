@@ -5,9 +5,10 @@ import HomeScreen from './screens/HomeScreen'
 import OptionsScreen from './screens/OptionsScreen'
 import ProgressScreen from './screens/ProgressScreen'
 import ResultScreen from './screens/ResultScreen'
+import HistoryScreen from './screens/HistoryScreen'
 import Logo from './components/Logo'
 
-type AppScreen = 'checking' | 'setup' | 'home' | 'options' | 'progress' | 'result'
+type AppScreen = 'checking' | 'setup' | 'home' | 'options' | 'progress' | 'result' | 'history'
 
 export default function App(): JSX.Element {
   const [screen, setScreen] = useState<AppScreen>('checking')
@@ -15,13 +16,16 @@ export default function App(): JSX.Element {
   const [jobId, setJobId] = useState<string | null>(null)
   const [jobResult, setJobResult] = useState<JobResult | null>(null)
   const [downloadVideo, setDownloadVideo] = useState(false)
-  const [targetLang, setTargetLang] = useState('es')
+  const [targetLang, setTargetLang] = useState('en')
   const [outputDir, setOutputDir] = useState('')
 
-  // Check yt-dlp on mount
+  // Check yt-dlp and ffmpeg on mount
   useEffect(() => {
-    window.electronAPI.checkYtdlp().then((status) => {
-      if (status.found) {
+    Promise.all([
+      window.electronAPI.checkYtdlp(),
+      window.electronAPI.checkFfmpeg()
+    ]).then(([yt, ff]) => {
+      if (yt.found && ff.found) {
         setScreen('home')
       } else {
         setScreen('setup')
@@ -36,7 +40,7 @@ export default function App(): JSX.Element {
     setScreen('options')
   }
 
-  const handleJobStarted = (id: string, opts: { downloadVideo: boolean; targetLang: string; outputDir: string }) => {
+  const handleJobStarted = (id: string, opts: { downloadVideo: boolean; targetLang: string; outputDir: string; cookiesBrowser?: string; cookiesFile?: string }) => {
     setJobId(id)
     setDownloadVideo(opts.downloadVideo)
     setTargetLang(opts.targetLang)
@@ -63,11 +67,30 @@ export default function App(): JSX.Element {
   return (
     <div className="flex flex-col h-full bg-base">
       {/* Titlebar / Header */}
-      <header className="flex items-center gap-3 px-5 py-3 border-b border-white/5 bg-base shrink-0">
-        <Logo className="h-7 w-auto" />
-        <span className="text-white/60 text-sm font-medium tracking-wide">
-          YT Video Translator
-        </span>
+      <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-white/5 bg-base shrink-0">
+        <div className="flex items-center gap-3">
+          <Logo className="h-7 w-auto" />
+          <span className="text-white/60 text-sm font-medium tracking-wide">
+            YT Video Translator
+          </span>
+        </div>
+        {(screen === 'home' || screen === 'history') && (
+          <button
+            onClick={() => setScreen(screen === 'history' ? 'home' : 'history')}
+            className="text-white/40 hover:text-white transition-colors"
+            title="History"
+          >
+            {screen === 'history' ? (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+          </button>
+        )}
       </header>
 
       {/* Main content */}
@@ -110,6 +133,16 @@ export default function App(): JSX.Element {
           <ResultScreen
             result={jobResult}
             onReset={handleReset}
+          />
+        )}
+
+        {screen === 'history' && (
+          <HistoryScreen
+            onBack={() => setScreen('home')}
+            onOpenResult={(result) => {
+              setJobResult(result)
+              setScreen('result')
+            }}
           />
         )}
       </main>

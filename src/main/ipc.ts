@@ -1,18 +1,22 @@
-import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron'
-import { readFile as fsReadFile } from 'fs/promises'
+import { ipcMain, dialog, shell, BrowserWindow, app, session } from 'electron'
+import { readFile as fsReadFile, writeFile } from 'fs/promises'
 import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
+import { tmpdir } from 'os'
 import { getFileServerPort } from './services/fileServer'
 import {
   resolveBinary,
   getVideoInfo,
   downloadCaptions,
   downloadVideo,
-  downloadYtdlpBinary
+  downloadYtdlpBinary,
+  resolveFfmpeg,
+  downloadFfmpegBinary
 } from './services/ytdlp'
-import { parseSrt } from './services/captionParser'
+import { parseSubtitleFile } from './services/captionParser'
 import { translateBlocks } from './services/translator'
 import { writeSrtAndVtt } from './services/srtWriter'
+import { saveHistoryEntry, loadHistory, deleteHistoryEntry, clearHistory } from './services/history'
 import type { JobOptions, JobProgressEvent, JobResult, YtdlpStatus, IpcError } from '@shared/types'
 
 export function registerAllIpcHandlers(): void {
@@ -21,7 +25,7 @@ export function registerAllIpcHandlers(): void {
 
   // ── get-default-output-dir ───────────────────────────────────────────────────
   ipcMain.handle('get-default-output-dir', (): string => {
-    const dir = join(app.getPath('videos'), 'RB YouTube Translator')
+    const dir = join(app.getPath('videos'), 'RB-YouTubeTools')
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     return dir
   })
@@ -42,6 +46,22 @@ export function registerAllIpcHandlers(): void {
       const win = BrowserWindow.getAllWindows()[0]
       const binPath = await downloadYtdlpBinary((pct, msg) => {
         win?.webContents.send('ytdlp-download-progress', pct, msg)
+      })
+      return { success: true, path: binPath }
+    } catch (e) {
+      return { error: true, message: (e as Error).message }
+    }
+  })
+
+  // ── check-ffmpeg ─────────────────────────────────────────────────────────────
+  ipcMain.handle('check-ffmpeg', () => resolveFfmpeg())
+
+  // ── download-ffmpeg ───────────────────────────────────────────────────────────
+  ipcMain.handle('download-ffmpeg', async (): Promise<{ success: boolean; path: string } | IpcError> => {
+    try {
+      const win = BrowserWindow.getAllWindows()[0]
+      const binPath = await downloadFfmpegBinary((pct, msg) => {
+        win?.webContents.send('ffmpeg-download-progress', pct, msg)
       })
       return { success: true, path: binPath }
     } catch (e) {
@@ -74,6 +94,18 @@ export function registerAllIpcHandlers(): void {
     return { jobId }
   })
 
+  // ── select-cookies-file ──────────────────────────────────────────────────────
+  ipcMain.handle('select-cookies-file', async () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openFile'],
+      title: 'Select cookies.txt file',
+      filters: [{ name: 'Cookies file', extensions: ['txt'] }]
+    })
+    if (result.canceled || !result.filePaths[0]) return { cancelled: true }
+    return { path: result.filePaths[0] }
+  })
+
   // ── select-output-dir ────────────────────────────────────────────────────────
   ipcMain.handle('select-output-dir', async () => {
     const win = BrowserWindow.getAllWindows()[0]
@@ -104,6 +136,77 @@ export function registerAllIpcHandlers(): void {
       return { error: true, message: (e as Error).message } as IpcError
     }
   })
+
+  // ── login-to-youtube ─────────────────────────────────────────────────────────
+  ipcMain.handle('login-to-youtube', async (): Promise<{ cookiesFile: string } | { cancelled: true } | IpcError> => {
+    return new Promise((resolve) => {
+      // Use a dedicated persistent session so cookies survive the window closing
+      const ytSession = session.fromPartition('persist:youtube-login')
+
+      const loginWin = new BrowserWindow({
+        width: 520,
+        height: 680,
+        title: 'Sign in to YouTube',
+        parent: BrowserWindow.getAllWindows()[0],
+        modal: true,
+        webPreferences: {
+          session: ytSession,
+          nodeIntegration: false,
+          contextIsolation: true,
+        }
+      })
+
+      loginWin.loadURL('https://accounts.google.com/ServiceLogin?service=youtube&continue=https://www.youtube.com')
+
+      // Detect successful login by watching for YouTube homepage redirect
+      loginWin.webContents.on('did-navigate', async (_, url) => {
+        if (!url.includes('youtube.com') || url.includes('accounts.google') || url.includes('ServiceLogin')) return
+
+        // Give YouTube a moment to set all cookies
+        await new Promise((r) => setTimeout(r, 1500))
+
+        try {
+          const cookies = await ytSession.cookies.get({ domain: '.youtube.com' })
+          const googleCookies = await ytSession.cookies.get({ domain: '.google.com' })
+          const allCookies = [...cookies, ...googleCookies]
+
+          if (allCookies.length === 0) return // Not fully logged in yet
+
+          // Format as Netscape cookies.txt
+          const lines = [
+            '# Netscape HTTP Cookie File',
+            '# Generated by RB-YouTubeTools',
+            ''
+          ]
+          for (const c of allCookies) {
+            const domain = c.domain ?? '.youtube.com'
+            const flag = domain.startsWith('.') ? 'TRUE' : 'FALSE'
+            const path = c.path ?? '/'
+            const secure = c.secure ? 'TRUE' : 'FALSE'
+            const expiry = c.expirationDate ? Math.floor(c.expirationDate) : 0
+            lines.push(`${domain}\t${flag}\t${path}\t${secure}\t${expiry}\t${c.name}\t${c.value}`)
+          }
+
+          const cookiesFile = join(tmpdir(), 'rb-ytt-cookies.txt')
+          await writeFile(cookiesFile, lines.join('\n'), 'utf-8')
+
+          loginWin.close()
+          resolve({ cookiesFile })
+        } catch (e) {
+          resolve({ error: true, message: (e as Error).message } as IpcError)
+        }
+      })
+
+      loginWin.on('closed', () => {
+        resolve({ cancelled: true })
+      })
+    })
+  })
+
+  // ── history ──────────────────────────────────────────────────────────────────
+  ipcMain.handle('get-history', () => loadHistory())
+  ipcMain.handle('delete-history-entry', (_event, id: string) => deleteHistoryEntry(id))
+  ipcMain.handle('clear-history', () => clearHistory())
 }
 
 async function runJob(
@@ -111,10 +214,23 @@ async function runJob(
   options: JobOptions,
   emit: (e: Omit<JobProgressEvent, 'jobId'>) => void
 ): Promise<void> {
-  const { url, targetLang, downloadVideo: shouldDownloadVideo, outputDir } = options
+  const { url, targetLang, downloadVideo: shouldDownloadVideo, outputDir, cookiesBrowser, cookiesFile } = options
 
   try {
-    // Stage 1: Fetch & download captions
+    // Stage 1: Fetch video info to get a clean folder name
+    emit({
+      stage: 'fetch-captions',
+      stageStatus: 'active',
+      message: 'Fetching video info...',
+      status: 'running'
+    })
+
+    let videoInfo = await getVideoInfo(url).catch(() => null)
+    // Sanitize title for use as folder name
+    const safeTitle = (videoInfo?.title ?? jobId).replace(/[<>:"/\\|?*]/g, '_').slice(0, 80)
+    const videoOutputDir = join(outputDir, safeTitle)
+    if (!existsSync(videoOutputDir)) mkdirSync(videoOutputDir, { recursive: true })
+
     emit({
       stage: 'fetch-captions',
       stageStatus: 'active',
@@ -122,7 +238,7 @@ async function runJob(
       status: 'running'
     })
 
-    const srtRaw = await downloadCaptions(url, outputDir, (msg) => {
+    const srtRaw = await downloadCaptions(url, videoOutputDir, cookiesBrowser, cookiesFile, (msg) => {
       emit({ stage: 'fetch-captions', stageStatus: 'active', message: msg, status: 'running' })
     })
 
@@ -141,7 +257,7 @@ async function runJob(
       status: 'running'
     })
 
-    const blocks = parseSrt(srtRaw)
+    const blocks = parseSubtitleFile(srtRaw)
 
     emit({
       stage: 'parse-captions',
@@ -185,14 +301,8 @@ async function runJob(
       status: 'running'
     })
 
-    // Get video title for filename
-    let videoTitle = 'translated'
-    try {
-      const info = await getVideoInfo(url)
-      videoTitle = info.title
-    } catch {}
-
-    const { srtPath, vttPath } = await writeSrtAndVtt(translated, outputDir, videoTitle, targetLang)
+    const videoTitle = videoInfo?.title ?? 'translated'
+    const { srtPath, vttPath } = await writeSrtAndVtt(translated, videoOutputDir, videoTitle, targetLang)
 
     emit({
       stage: 'write-output',
@@ -213,7 +323,7 @@ async function runJob(
         status: 'running'
       })
 
-      videoPath = await downloadVideo(url, outputDir, (pct, msg) => {
+      videoPath = await downloadVideo(url, videoOutputDir, (pct, msg) => {
         emit({
           stage: 'download-video',
           stageStatus: 'active',
@@ -236,10 +346,29 @@ async function runJob(
       srtPath,
       vttPath,
       videoPath,
-      outputDir,
+      outputDir: videoOutputDir,
       blockCount: translated.length,
       videoTitle
     }
+
+    // Save to history
+    try {
+      const urlObj = new URL(url)
+      const videoId = urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop() || jobId
+      saveHistoryEntry({
+        id: jobId,
+        date: new Date().toISOString(),
+        videoTitle,
+        videoId,
+        thumbnailUrl: videoInfo?.thumbnailUrl ?? '',
+        targetLang,
+        blockCount: translated.length,
+        srtPath,
+        vttPath,
+        videoPath,
+        outputDir: videoOutputDir
+      })
+    } catch {}
 
     emit({
       stage: 'write-output',

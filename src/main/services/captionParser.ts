@@ -68,6 +68,82 @@ function cleanSrtText(text: string): string {
 }
 
 /**
+ * Parse YouTube VTT into SubtitleBlock array.
+ * YouTube VTT has word-by-word inline timestamps and duplicate carry-forward
+ * cues (0.01s transitions). We skip short cues and deduplicate.
+ */
+export function parseVtt(raw: string): SubtitleBlock[] {
+  const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+
+  // Drop the header (everything before first blank line)
+  const headerEnd = normalized.indexOf('\n\n')
+  const body = headerEnd >= 0 ? normalized.slice(headerEnd + 2) : normalized
+
+  const rawBlocks = body.trim().split(/\n{2,}/)
+  const blocks: SubtitleBlock[] = []
+  let index = 1
+
+  for (const rawBlock of rawBlocks) {
+    const lines = rawBlock.split('\n').map((l) => l.trim()).filter(Boolean)
+    if (lines.length < 2) continue
+
+    // Find timecode line (may be preceded by a cue id)
+    let tcLine = lines[0]
+    let textStart = 1
+    if (!tcLine.includes('-->')) {
+      tcLine = lines[1]
+      textStart = 2
+    }
+    if (!tcLine.includes('-->')) continue
+
+    // Parse VTT timecodes: HH:MM:SS.mmm or MM:SS.mmm
+    const tcMatch = tcLine.match(
+      /([\d:]+\.\d+)\s*-->\s*([\d:]+\.\d+)/
+    )
+    if (!tcMatch) continue
+
+    const toSrtTime = (t: string): string => {
+      const parts = t.split(':')
+      while (parts.length < 3) parts.unshift('0')
+      const [h, m, s] = parts
+      const [sec, ms] = s.split('.')
+      return `${h.padStart(2,'0')}:${m.padStart(2,'0')}:${sec.padStart(2,'0')},${(ms || '000').padStart(3,'0').slice(0, 3)}`
+    }
+
+    const startTime = toSrtTime(tcMatch[1])
+    const endTime = toSrtTime(tcMatch[2])
+
+    // Calculate duration in ms to skip carry-forward cues (< 100ms)
+    const parseMs = (t: string) => {
+      const [h, rest] = t.split(',')
+      const [hh, mm, ss] = h.split(':').map(Number)
+      return hh * 3600000 + mm * 60000 + ss * 1000 + Number(rest)
+    }
+    if (parseMs(endTime) - parseMs(startTime) < 100) continue
+
+    const rawText = lines.slice(textStart).join(' ')
+    const text = cleanSrtText(rawText)
+    if (!text) continue
+
+    // Skip if identical text to previous block (carry-forward duplicate)
+    if (blocks.length > 0 && blocks[blocks.length - 1].text === text) continue
+
+    blocks.push({ index: index++, startTime, endTime, text })
+  }
+
+  return blocks
+}
+
+/**
+ * Detect format and parse either SRT or VTT into SubtitleBlock array.
+ */
+export function parseSubtitleFile(raw: string): SubtitleBlock[] {
+  const trimmed = raw.trim()
+  if (trimmed.startsWith('WEBVTT')) return parseVtt(raw)
+  return parseSrt(raw)
+}
+
+/**
  * Reassemble SubtitleBlock array back to SRT string.
  */
 export function assembleSrt(blocks: SubtitleBlock[]): string {
