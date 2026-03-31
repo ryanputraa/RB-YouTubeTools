@@ -14,6 +14,16 @@ const api: ElectronAPI = {
     })
   },
 
+  checkFfmpeg: () => ipcRenderer.invoke('check-ffmpeg'),
+
+  downloadFfmpeg: (onProgress) => {
+    const handler = (_event: IpcRendererEvent, pct: number, msg: string) => onProgress(pct, msg)
+    ipcRenderer.on('ffmpeg-download-progress', handler)
+    return ipcRenderer.invoke('download-ffmpeg').finally(() => {
+      ipcRenderer.removeListener('ffmpeg-download-progress', handler)
+    })
+  },
+
   getDefaultOutputDir: () => ipcRenderer.invoke('get-default-output-dir'),
 
   getVideoInfo: (url) => ipcRenderer.invoke('get-video-info', url),
@@ -21,6 +31,7 @@ const api: ElectronAPI = {
   startJob: (options) => ipcRenderer.invoke('start-job', options),
 
   selectOutputDir: () => ipcRenderer.invoke('select-output-dir'),
+  selectCookiesFile: () => ipcRenderer.invoke('select-cookies-file'),
 
   openFolder: (path) => ipcRenderer.invoke('open-folder', path),
 
@@ -36,7 +47,12 @@ const api: ElectronAPI = {
     const handler = (_event: IpcRendererEvent, pct: number, msg: string) => callback(pct, msg)
     ipcRenderer.on('ytdlp-download-progress', handler)
     return () => ipcRenderer.removeListener('ytdlp-download-progress', handler)
-  }
+  },
+
+  loginToYoutube: () => ipcRenderer.invoke('login-to-youtube'),
+  getHistory: () => ipcRenderer.invoke('get-history'),
+  deleteHistoryEntry: (id) => ipcRenderer.invoke('delete-history-entry', id),
+  clearHistory: () => ipcRenderer.invoke('clear-history'),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

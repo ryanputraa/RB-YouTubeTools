@@ -5,7 +5,7 @@ import { LANGUAGES } from '../lib/languages'
 interface OptionsScreenProps {
   videoInfo: VideoInfo
   onBack: () => void
-  onStart: (jobId: string, opts: { downloadVideo: boolean; targetLang: string; outputDir: string }) => void
+  onStart: (jobId: string, opts: { downloadVideo: boolean; targetLang: string; outputDir: string; cookiesBrowser?: string; cookiesFile?: string }) => void
 }
 
 function formatDuration(seconds: number): string {
@@ -18,10 +18,13 @@ function formatDuration(seconds: number): string {
 }
 
 export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScreenProps): JSX.Element {
-  const [targetLang, setTargetLang] = useState('es')
+  const [targetLang, setTargetLang] = useState('en')
   const [downloadVideo, setDownloadVideo] = useState(false)
   const [outputDir, setOutputDir] = useState('')
   const [langSearch, setLangSearch] = useState('')
+  const [cookiesBrowser, setCookiesBrowser] = useState('')
+  const [cookiesFile, setCookiesFile] = useState('')
+  const [loginStatus, setLoginStatus] = useState<'idle' | 'logging-in' | 'done'>('idle')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -56,7 +59,9 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
         url: videoInfo.url,
         targetLang,
         downloadVideo,
-        outputDir
+        outputDir,
+        cookiesBrowser: cookiesBrowser || undefined,
+        cookiesFile: cookiesFile || undefined
       })
 
       if ('error' in result) {
@@ -65,7 +70,7 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
         return
       }
 
-      onStart(result.jobId, { downloadVideo, targetLang, outputDir })
+      onStart(result.jobId, { downloadVideo, targetLang, outputDir, cookiesBrowser: cookiesBrowser || undefined, cookiesFile: cookiesFile || undefined })
     } catch (e) {
       setError((e as Error).message)
       setLoading(false)
@@ -168,6 +173,77 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
               }`}
             />
           </button>
+        </div>
+
+        {/* YouTube Login */}
+        <div className="card space-y-3">
+          <div>
+            <p className="text-sm font-medium text-white/80">YouTube Login <span className="text-white/30 font-normal">(optional)</span></p>
+            <p className="text-xs text-white/40 mt-0.5">Only needed for age-restricted or rate-limited videos</p>
+          </div>
+
+          {loginStatus === 'done' || cookiesFile ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-accent-green">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                Signed in to YouTube
+              </div>
+              <button
+                onClick={() => { setCookiesFile(''); setLoginStatus('idle') }}
+                className="text-xs text-white/30 hover:text-white/60 transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <button
+                onClick={async () => {
+                  setLoginStatus('logging-in')
+                  const r = await window.electronAPI.loginToYoutube()
+                  if ('cookiesFile' in r) {
+                    setCookiesFile(r.cookiesFile)
+                    setCookiesBrowser('')
+                    setLoginStatus('done')
+                  } else {
+                    setLoginStatus('idle')
+                  }
+                }}
+                disabled={loginStatus === 'logging-in'}
+                className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
+              >
+                {loginStatus === 'logging-in' ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                    Opening sign-in window...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    </svg>
+                    Sign in to YouTube
+                  </>
+                )}
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-xs text-white/20">or</span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+              <button
+                onClick={async () => {
+                  const r = await window.electronAPI.selectCookiesFile()
+                  if (!('cancelled' in r)) { setCookiesFile(r.path); setCookiesBrowser(''); setLoginStatus('done') }
+                }}
+                className="text-xs text-white/40 hover:text-white/60 transition-colors w-full text-center"
+              >
+                Use cookies.txt file
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Output folder */}
