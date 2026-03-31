@@ -150,6 +150,17 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
   })
 }
 
+// ── Find Node.js path (for yt-dlp JS interpreter) ────────────────────────────
+
+function findNodePath(): string | undefined {
+  const which = IS_WIN ? 'where' : 'which'
+  const result = spawnSync(which, ['node'], { encoding: 'utf-8' })
+  if (result.status === 0 && result.stdout.trim()) {
+    return result.stdout.trim().split('\n')[0].trim()
+  }
+  return undefined
+}
+
 // ── Download Captions ─────────────────────────────────────────────────────────
 
 export async function downloadCaptions(
@@ -158,11 +169,13 @@ export async function downloadCaptions(
   onLog: (msg: string) => void
 ): Promise<string> {
   const { path: bin } = await resolveBinary()
+  const nodePath = findNodePath()
 
-  // Try auto-generated subtitles in English first, then any language
-  const srtContent = await tryDownloadCaptions(bin, url, outputDir, 'en', onLog)
-    .catch(() => tryDownloadCaptions(bin, url, outputDir, 'en-orig', onLog))
-    .catch(() => tryDownloadCaptions(bin, url, outputDir, '.*', onLog))
+  // Try auto-subs (en) → auto-subs (any) → manual subs (any)
+  const srtContent = await tryDownloadCaptions(bin, url, 'en', true, nodePath, onLog)
+    .catch(() => tryDownloadCaptions(bin, url, 'en-orig', true, nodePath, onLog))
+    .catch(() => tryDownloadCaptions(bin, url, '.*', true, nodePath, onLog))
+    .catch(() => tryDownloadCaptions(bin, url, '.*', false, nodePath, onLog))
 
   return srtContent
 }
@@ -170,21 +183,32 @@ export async function downloadCaptions(
 async function tryDownloadCaptions(
   bin: string,
   url: string,
-  outputDir: string,
   subLang: string,
+  autoSubs: boolean,
+  nodePath: string | undefined,
   onLog: (msg: string) => void
 ): Promise<string> {
   const tmpOut = join(tmpdir(), `rb-yt-${Date.now()}`)
 
   const args = [
     '--skip-download',
-    '--write-auto-subs',
+    autoSubs ? '--write-auto-subs' : '--write-subs',
     '--convert-subs', 'srt',
     '--sub-lang', subLang,
     '--no-playlist',
+    // Use Android client: avoids JS requirement and has lower rate limiting
+    '--extractor-args', 'youtube:player_client=android,web_creator',
+    '--sleep-requests', '1',
+    '--retries', '3',
     '-o', `${tmpOut}/%(title)s`,
-    url
   ]
+
+  // Pass Node.js as JS interpreter if available
+  if (nodePath) {
+    args.push('--js-interpreter', `node:${nodePath}`)
+  }
+
+  args.push(url)
 
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args)
