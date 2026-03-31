@@ -14,6 +14,8 @@ const api: ElectronAPI = {
     })
   },
 
+  getDefaultOutputDir: () => ipcRenderer.invoke('get-default-output-dir'),
+
   getVideoInfo: (url) => ipcRenderer.invoke('get-video-info', url),
 
   startJob: (options) => ipcRenderer.invoke('start-job', options),

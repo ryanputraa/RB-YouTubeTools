@@ -1,6 +1,7 @@
 import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron'
 import { readFile as fsReadFile } from 'fs/promises'
-import { existsSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
+import { join } from 'path'
 import { getFileServerPort } from './services/fileServer'
 import {
   resolveBinary,
@@ -17,6 +18,13 @@ import type { JobOptions, JobProgressEvent, JobResult, YtdlpStatus, IpcError } f
 export function registerAllIpcHandlers(): void {
   // ── get-file-server-port ─────────────────────────────────────────────────────
   ipcMain.handle('get-file-server-port', () => getFileServerPort())
+
+  // ── get-default-output-dir ───────────────────────────────────────────────────
+  ipcMain.handle('get-default-output-dir', (): string => {
+    const dir = join(app.getPath('videos'), 'RB YouTube Translator')
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    return dir
+  })
 
   // ── check-ytdlp ──────────────────────────────────────────────────────────────
   ipcMain.handle('check-ytdlp', async (): Promise<YtdlpStatus> => {

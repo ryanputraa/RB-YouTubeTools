@@ -25,6 +25,10 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    window.electronAPI.getDefaultOutputDir().then(setOutputDir)
+  }, [])
+
   const filteredLangs = LANGUAGES.filter(
     (l) =>
       l.name.toLowerCase().includes(langSearch.toLowerCase()) ||

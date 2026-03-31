@@ -86,6 +86,7 @@ export interface ElectronAPI {
   startJob: (options: JobOptions) => Promise<{ jobId: string } | IpcError>
   checkYtdlp: () => Promise<YtdlpStatus>
   downloadYtdlp: (onProgress: (pct: number, msg: string) => void) => Promise<{ success: boolean; path: string } | IpcError>
+  getDefaultOutputDir: () => Promise<string>
   selectOutputDir: () => Promise<{ path: string } | { cancelled: true }>
   openFolder: (path: string) => Promise<void>
   readFile: (path: string) => Promise<{ content: string } | IpcError>
