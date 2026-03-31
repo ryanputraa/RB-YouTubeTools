@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: #12151c;
+    color: #ffffff;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 14px;
+    overflow: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1a1f2e;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #078d70;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #0aa882;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-hover active:bg-primary-dark text-white font-semibold
+           px-5 py-2.5 rounded-lg transition-colors duration-150 disabled:opacity-50
+           disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-base-card hover:bg-base-light border border-white/10 text-white/80
+           font-medium px-4 py-2.5 rounded-lg transition-colors duration-150;
+  }
+
+  .btn-ghost {
+    @apply text-accent-green hover:text-white transition-colors duration-150
+           font-medium px-3 py-2 rounded-lg hover:bg-white/5;
+  }
+
+  .input-field {
+    @apply bg-base-card border border-white/10 rounded-lg px-4 py-2.5 text-white
+           placeholder-white/30 outline-none focus:border-primary transition-colors
+           duration-150 w-full;
+  }
+
+  .card {
+    @apply bg-base-card border border-white/10 rounded-xl p-5;
+  }
+
+  .stage-dot-pending {
+    @apply w-2 h-2 rounded-full bg-white/20;
+  }
+
+  .stage-dot-active {
+    @apply w-2 h-2 rounded-full bg-accent-blue animate-pulse;
+  }
+
+  .stage-dot-done {
+    @apply w-2 h-2 rounded-full bg-primary;
+  }
+
+  .stage-dot-error {
+    @apply w-2 h-2 rounded-full bg-red-500;
+  }
+}
+
+/* Video subtitle styling */
+video::cue {
+  background: rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  font-size: 1em;
+  font-family: 'Inter', sans-serif;
+}
