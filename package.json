@@ -1,11 +1,10 @@
 {
-  "name": "rb-ytt-video-translator",
-  "version": "1.0.0",
-  "description": "RB YouTube Video Translator - Download and translate YouTube captions",
+  "name": "rb-youtube-tools",
+  "version": "0.1.1-alpha",
+  "description": "RB YouTube Tools - Download and translate YouTube captions",
   "main": "out/main/index.js",
   "homepage": ".",
   "author": "Ryan Budianto <ryanpbudianto@gmail.com>",
-
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
@@ -15,23 +14,37 @@
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux"
   },
-
   "build": {
-    "appId": "com.rb.yttvideotranslator",
+    "appId": "com.rb.youtubetools",
     "productName": "RB YouTube Tools",
     "files": [
       "out/**/*",
       "dist/**/*"
     ],
     "win": {
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RB YouTube Tools"
     }
   },
-
   "dependencies": {
     "google-translate-api-x": "^10.7.1"
   },
-
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@types/node": "^20.11.5",

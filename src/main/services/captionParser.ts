@@ -125,13 +125,25 @@ export function parseVtt(raw: string): SubtitleBlock[] {
     const text = cleanSrtText(rawText)
     if (!text) continue
 
-    // Skip if identical text to previous block (carry-forward duplicate)
-    if (blocks.length > 0 && blocks[blocks.length - 1].text === text) continue
-
     blocks.push({ index: index++, startTime, endTime, text })
   }
 
-  return blocks
+  // Post-process: YouTube auto-captions use an accumulating pattern where
+  // multiple cues share the same start time, each adding one more word.
+  // e.g. "안녕" → "안녕 하세요" → "안녕 하세요 여러분" all at 0:01.000
+  // Keep only the last (most complete) cue per start time.
+  const deduped: SubtitleBlock[] = []
+  for (let i = 0; i < blocks.length; i++) {
+    const cur = blocks[i]
+    const next = blocks[i + 1]
+    // Skip if same start time as next block (next is more complete)
+    if (next && next.startTime === cur.startTime) continue
+    // Skip exact duplicate of previous
+    if (deduped.length > 0 && deduped[deduped.length - 1].text === cur.text) continue
+    deduped.push({ ...cur, index: deduped.length + 1 })
+  }
+
+  return deduped
 }
 
 /**

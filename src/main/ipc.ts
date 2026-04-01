@@ -1,6 +1,6 @@
 import { ipcMain, dialog, shell, BrowserWindow, app, session } from 'electron'
 import { readFile as fsReadFile, writeFile } from 'fs/promises'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { getFileServerPort } from './services/fileServer'
@@ -207,6 +207,83 @@ export function registerAllIpcHandlers(): void {
   ipcMain.handle('get-history', () => loadHistory())
   ipcMain.handle('delete-history-entry', (_event, id: string) => deleteHistoryEntry(id))
   ipcMain.handle('clear-history', () => clearHistory())
+
+  // ── backfill-history ─────────────────────────────────────────────────────────
+  // Scan the default output dir for folders that have VTT/SRT files but aren't
+  // in history.json yet — so old translations show up automatically.
+  ipcMain.handle('backfill-history', async (): Promise<{ added: number }> => {
+    const outputDir = join(app.getPath('videos'), 'RB-YouTubeTools')
+    if (!existsSync(outputDir)) return { added: 0 }
+
+    const existing = loadHistory()
+    const existingDirs = new Set(existing.map((e) => e.outputDir))
+
+    let added = 0
+    let subdirs: string[] = []
+    try {
+      subdirs = readdirSync(outputDir).filter((name) => {
+        const full = join(outputDir, name)
+        return statSync(full).isDirectory()
+      })
+    } catch { return { added: 0 } }
+
+    for (const folderName of subdirs) {
+      const folderPath = join(outputDir, folderName)
+      if (existingDirs.has(folderPath)) continue
+
+      let files: string[] = []
+      try { files = readdirSync(folderPath) } catch { continue }
+
+      const vttFiles = files.filter((f) => f.endsWith('.vtt'))
+      const srtFiles = files.filter((f) => f.endsWith('.srt'))
+      const videoFiles = files.filter((f) => f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'))
+
+      const subFile = vttFiles[0] ?? srtFiles[0]
+      if (!subFile) continue
+
+      // Extract target lang from filename: title_en.vtt → 'en'
+      const langMatch = subFile.replace(/\.(vtt|srt)$/, '').match(/_([a-z]{2}(?:-[A-Z]{2})?)$/)
+      const targetLang = langMatch?.[1] ?? 'unknown'
+
+      // Count blocks by reading the file
+      let blockCount = 0
+      try {
+        const content = await fsReadFile(join(folderPath, subFile), 'utf-8')
+        blockCount = (content.match(/^\d+$/m) ? content.split(/\n\n+/).filter((b) => /^\d+\n/.test(b.trim())).length : content.split(/\n\n+/).filter((b) => b.includes('-->')).length)
+      } catch {}
+
+      const videoPath = videoFiles.length > 0 ? join(folderPath, videoFiles[0]) : undefined
+      const srtPath = srtFiles.length > 0 ? join(folderPath, srtFiles[0]) : ''
+      const vttPath = vttFiles.length > 0 ? join(folderPath, vttFiles[0]) : ''
+
+      const entry = {
+        id: `backfill-${folderPath}`,
+        date: new Date().toISOString(),
+        videoTitle: folderName,
+        videoId: '',
+        thumbnailUrl: '',
+        targetLang,
+        blockCount,
+        srtPath,
+        vttPath,
+        videoPath,
+        outputDir: folderPath
+      }
+
+      existing.push(entry)
+      existingDirs.add(folderPath)
+      added++
+    }
+
+    if (added > 0) {
+      const { writeFileSync } = require('fs')
+      const histPath = join(app.getPath('userData'), 'history.json')
+      // Sort newest first (backfilled entries go to end, real entries at top)
+      writeFileSync(histPath, JSON.stringify(existing.slice(0, 50), null, 2), 'utf-8')
+    }
+
+    return { added }
+  })
 }
 
 async function runJob(
@@ -214,7 +291,7 @@ async function runJob(
   options: JobOptions,
   emit: (e: Omit<JobProgressEvent, 'jobId'>) => void
 ): Promise<void> {
-  const { url, targetLang, downloadVideo: shouldDownloadVideo, outputDir, cookiesBrowser, cookiesFile } = options
+  const { url, targetLang, sourceLang, downloadVideo: shouldDownloadVideo, outputDir, cookiesBrowser, cookiesFile } = options
 
   try {
     // Stage 1: Fetch video info to get a clean folder name
@@ -240,7 +317,7 @@ async function runJob(
 
     const srtRaw = await downloadCaptions(url, videoOutputDir, cookiesBrowser, cookiesFile, (msg) => {
       emit({ stage: 'fetch-captions', stageStatus: 'active', message: msg, status: 'running' })
-    })
+    }, sourceLang)
 
     emit({
       stage: 'fetch-captions',
@@ -362,6 +439,7 @@ async function runJob(
         videoId,
         thumbnailUrl: videoInfo?.thumbnailUrl ?? '',
         targetLang,
+        sourceLang,
         blockCount: translated.length,
         srtPath,
         vttPath,
