@@ -271,14 +271,21 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
           } catch { return code }
         }
 
+        // automatic_captions contains every language YouTube can auto-translate to (150+).
+        // We only want the original spoken language tracks, which have a '-orig' suffix
+        // (e.g. 'ko-orig' means Korean is the original language of the video).
         if (data.automatic_captions && typeof data.automatic_captions === 'object') {
           for (const lang of Object.keys(data.automatic_captions)) {
-            if (!seen.has(`auto:${lang}`)) {
-              seen.add(`auto:${lang}`)
-              availableCaptions.push({ lang, langName: getLangName(lang), isAuto: true })
+            if (!lang.endsWith('-orig')) continue
+            const baseLang = lang.replace(/-orig$/, '')  // 'ko-orig' → 'ko'
+            const key = `auto:${baseLang}`
+            if (!seen.has(key)) {
+              seen.add(key)
+              availableCaptions.push({ lang: baseLang, langName: getLangName(baseLang), isAuto: true })
             }
           }
         }
+        // subtitles contains manually uploaded caption tracks — always include these
         if (data.subtitles && typeof data.subtitles === 'object') {
           for (const lang of Object.keys(data.subtitles)) {
             if (!seen.has(`manual:${lang}`)) {
