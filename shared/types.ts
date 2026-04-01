@@ -1,5 +1,11 @@
 // ── Video Info ────────────────────────────────────────────────────────────────
 
+export interface CaptionTrack {
+  lang: string      // BCP-47 code e.g. "ko", "en"
+  langName: string  // display name e.g. "Korean"
+  isAuto: boolean   // auto-generated vs manual
+}
+
 export interface VideoInfo {
   url: string
   videoId: string
@@ -7,6 +13,7 @@ export interface VideoInfo {
   channelName: string
   durationSeconds: number
   thumbnailUrl: string
+  availableCaptions: CaptionTrack[]
 }
 
 // ── Subtitle Structures ───────────────────────────────────────────────────────
@@ -23,6 +30,7 @@ export interface SubtitleBlock {
 export interface JobOptions {
   url: string
   targetLang: string   // BCP-47 code e.g. "fr", "es", "zh-TW"
+  sourceLang?: string  // caption track to translate from (default: auto-detect 'en')
   downloadVideo: boolean
   outputDir: string
   cookiesBrowser?: string  // e.g. "chrome", "firefox", "edge"
@@ -94,6 +102,7 @@ export interface HistoryEntry {
   videoId: string
   thumbnailUrl: string
   targetLang: string
+  sourceLang?: string
   blockCount: number
   srtPath: string
   vttPath: string
@@ -120,6 +129,7 @@ export interface ElectronAPI {
   getHistory: () => Promise<HistoryEntry[]>
   deleteHistoryEntry: (id: string) => Promise<void>
   clearHistory: () => Promise<void>
+  backfillHistory: () => Promise<{ added: number }>
 }
 
 declare global {

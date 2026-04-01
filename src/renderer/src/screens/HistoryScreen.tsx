@@ -22,7 +22,10 @@ export default function HistoryScreen({ onBack, onOpenResult }: HistoryScreenPro
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    window.electronAPI.getHistory().then((h) => { setEntries(h); setLoading(false) })
+    // Backfill first (adds any folders not yet in history), then load
+    window.electronAPI.backfillHistory().catch(() => {}).finally(() => {
+      window.electronAPI.getHistory().then((h) => { setEntries(h); setLoading(false) })
+    })
   }, [])
 
   const handleDelete = async (id: string) => {

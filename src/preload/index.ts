@@ -53,6 +53,7 @@ const api: ElectronAPI = {
   getHistory: () => ipcRenderer.invoke('get-history'),
   deleteHistoryEntry: (id) => ipcRenderer.invoke('delete-history-entry', id),
   clearHistory: () => ipcRenderer.invoke('clear-history'),
+  backfillHistory: () => ipcRenderer.invoke('backfill-history'),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

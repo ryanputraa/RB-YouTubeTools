@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, chmodSync, readdirSync, copyFileSync, renameSync
 import { writeFile } from 'fs/promises'
 import { app, net } from 'electron'
 import { tmpdir } from 'os'
-import type { VideoInfo, FfmpegStatus } from '@shared/types'
+import type { VideoInfo, FfmpegStatus, CaptionTrack } from '@shared/types'
 
 const IS_WIN = process.platform === 'win32'
 const IS_MAC = process.platform === 'darwin'
@@ -260,13 +260,42 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
       }
       try {
         const data = JSON.parse(stdout.trim())
+
+        // Build available caption tracks from auto-captions + manual subs
+        const availableCaptions: CaptionTrack[] = []
+        const seen = new Set<string>()
+
+        const getLangName = (code: string): string => {
+          try {
+            return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) ?? code
+          } catch { return code }
+        }
+
+        if (data.automatic_captions && typeof data.automatic_captions === 'object') {
+          for (const lang of Object.keys(data.automatic_captions)) {
+            if (!seen.has(`auto:${lang}`)) {
+              seen.add(`auto:${lang}`)
+              availableCaptions.push({ lang, langName: getLangName(lang), isAuto: true })
+            }
+          }
+        }
+        if (data.subtitles && typeof data.subtitles === 'object') {
+          for (const lang of Object.keys(data.subtitles)) {
+            if (!seen.has(`manual:${lang}`)) {
+              seen.add(`manual:${lang}`)
+              availableCaptions.push({ lang, langName: getLangName(lang), isAuto: false })
+            }
+          }
+        }
+
         const info: VideoInfo = {
           url,
           videoId: data.id || '',
           title: data.title || 'Unknown Title',
           channelName: data.channel || data.uploader || 'Unknown Channel',
           durationSeconds: data.duration || 0,
-          thumbnailUrl: data.thumbnail || ''
+          thumbnailUrl: data.thumbnail || '',
+          availableCaptions
         }
         resolve(info)
       } catch (e) {
@@ -285,15 +314,19 @@ export async function downloadCaptions(
   outputDir: string,
   cookiesBrowser: string | undefined,
   cookiesFile: string | undefined,
-  onLog: (msg: string) => void
+  onLog: (msg: string) => void,
+  sourceLang?: string
 ): Promise<string> {
   const { path: bin } = await resolveBinary()
 
-  // Fallback chain: auto en → auto en.* variants → manual en.*
+  const lang = sourceLang || 'en'
+  const langWild = lang.includes('.') ? lang : `${lang}.*`
+
+  // Fallback chain: auto exact → auto wildcard → manual wildcard
   // Never use .* (all langs) — it downloads 150 subtitles and hammers the API
-  const content = await tryDownloadCaptions(bin, url, 'en', true, cookiesBrowser, cookiesFile, onLog)
-    .catch(() => tryDownloadCaptions(bin, url, 'en.*', true, cookiesBrowser, cookiesFile, onLog))
-    .catch(() => tryDownloadCaptions(bin, url, 'en.*', false, cookiesBrowser, cookiesFile, onLog))
+  const content = await tryDownloadCaptions(bin, url, lang, true, cookiesBrowser, cookiesFile, onLog)
+    .catch(() => tryDownloadCaptions(bin, url, langWild, true, cookiesBrowser, cookiesFile, onLog))
+    .catch(() => tryDownloadCaptions(bin, url, langWild, false, cookiesBrowser, cookiesFile, onLog))
 
   return content
 }

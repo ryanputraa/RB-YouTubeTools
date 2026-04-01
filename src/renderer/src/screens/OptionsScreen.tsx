@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import type { VideoInfo } from '@shared/types'
+import type { VideoInfo, CaptionTrack } from '@shared/types'
 import { LANGUAGES } from '../lib/languages'
 
 interface OptionsScreenProps {
   videoInfo: VideoInfo
+  cookiesFile: string  // lifted from App-level login state
   onBack: () => void
-  onStart: (jobId: string, opts: { downloadVideo: boolean; targetLang: string; outputDir: string; cookiesBrowser?: string; cookiesFile?: string }) => void
+  onStart: (jobId: string, opts: { downloadVideo: boolean; targetLang: string; outputDir: string }) => void
 }
 
 function formatDuration(seconds: number): string {
@@ -17,20 +18,30 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScreenProps): JSX.Element {
+function captionLabel(track: CaptionTrack): string {
+  return `${track.langName} (${track.isAuto ? 'auto' : 'manual'})`
+}
+
+export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart }: OptionsScreenProps): JSX.Element {
   const [targetLang, setTargetLang] = useState('en')
-  const [downloadVideo, setDownloadVideo] = useState(false)
+  const [sourceLang, setSourceLang] = useState('')  // '' = auto (default yt-dlp chain)
+  const [downloadVideo, setDownloadVideo] = useState(true)
   const [outputDir, setOutputDir] = useState('')
   const [langSearch, setLangSearch] = useState('')
-  const [cookiesBrowser, setCookiesBrowser] = useState('')
-  const [cookiesFile, setCookiesFile] = useState('')
-  const [loginStatus, setLoginStatus] = useState<'idle' | 'logging-in' | 'done'>('idle')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     window.electronAPI.getDefaultOutputDir().then(setOutputDir)
   }, [])
+
+  // Pre-select source lang: prefer Korean auto-captions if available (common use case)
+  useEffect(() => {
+    const caps = videoInfo.availableCaptions
+    if (!caps || caps.length === 0) return
+    const ko = caps.find((c) => c.lang === 'ko' && c.isAuto)
+    if (ko) setSourceLang('ko')
+  }, [videoInfo])
 
   const filteredLangs = LANGUAGES.filter(
     (l) =>
@@ -41,9 +52,7 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
 
   const handleBrowse = async () => {
     const result = await window.electronAPI.selectOutputDir()
-    if (!('cancelled' in result)) {
-      setOutputDir(result.path)
-    }
+    if (!('cancelled' in result)) setOutputDir(result.path)
   }
 
   const handleStart = async () => {
@@ -58,9 +67,9 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
       const result = await window.electronAPI.startJob({
         url: videoInfo.url,
         targetLang,
+        sourceLang: sourceLang || undefined,
         downloadVideo,
         outputDir,
-        cookiesBrowser: cookiesBrowser || undefined,
         cookiesFile: cookiesFile || undefined
       })
 
@@ -70,7 +79,7 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
         return
       }
 
-      onStart(result.jobId, { downloadVideo, targetLang, outputDir, cookiesBrowser: cookiesBrowser || undefined, cookiesFile: cookiesFile || undefined })
+      onStart(result.jobId, { downloadVideo, targetLang, outputDir })
     } catch (e) {
       setError((e as Error).message)
       setLoading(false)
@@ -78,6 +87,10 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
   }
 
   const selectedLang = LANGUAGES.find((l) => l.code === targetLang)
+  const caps = videoInfo.availableCaptions ?? []
+  const autoCaps = caps.filter((c) => c.isAuto)
+  const manualCaps = caps.filter((c) => !c.isAuto)
+  const selectedSource = caps.find((c) => c.lang === sourceLang)
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-6 space-y-5">
@@ -115,9 +128,62 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
           Translation Options
         </h3>
 
-        {/* Language selector */}
+        {/* Caption source selector */}
+        {caps.length > 0 && (
+          <div className="card space-y-3">
+            <div>
+              <label className="text-sm font-medium text-white/80">Caption Source</label>
+              <p className="text-xs text-white/40 mt-0.5">Which caption track to translate from</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSourceLang('')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  sourceLang === ''
+                    ? 'bg-primary/30 text-accent-green border border-primary/40'
+                    : 'bg-white/5 text-white/50 hover:bg-white/10 border border-transparent'
+                }`}
+              >
+                Auto-detect
+              </button>
+              {autoCaps.map((c) => (
+                <button
+                  key={`auto-${c.lang}`}
+                  onClick={() => setSourceLang(c.lang)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    sourceLang === c.lang
+                      ? 'bg-primary/30 text-accent-green border border-primary/40'
+                      : 'bg-white/5 text-white/50 hover:bg-white/10 border border-transparent'
+                  }`}
+                >
+                  {c.langName} <span className="text-white/30">auto</span>
+                </button>
+              ))}
+              {manualCaps.map((c) => (
+                <button
+                  key={`manual-${c.lang}`}
+                  onClick={() => setSourceLang(c.lang)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    sourceLang === c.lang
+                      ? 'bg-primary/30 text-accent-green border border-primary/40'
+                      : 'bg-white/5 text-white/50 hover:bg-white/10 border border-transparent'
+                  }`}
+                >
+                  {c.langName} <span className="text-white/30">manual</span>
+                </button>
+              ))}
+            </div>
+            {selectedSource && (
+              <p className="text-xs text-white/30">
+                Source: <span className="text-white/60">{captionLabel(selectedSource)}</span>
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Target language selector */}
         <div className="card space-y-3">
-          <label className="text-sm font-medium text-white/80">Target Language</label>
+          <label className="text-sm font-medium text-white/80">Translate To</label>
           <input
             type="text"
             placeholder="Search languages..."
@@ -154,94 +220,35 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
         </div>
 
         {/* Download video toggle */}
-        <div className="card flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-white/80">Download Video</p>
-            <p className="text-xs text-white/40 mt-0.5">
-              Also download the video file (larger, takes longer)
-            </p>
-          </div>
-          <button
-            onClick={() => setDownloadVideo(!downloadVideo)}
-            className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ${
-              downloadVideo ? 'bg-primary' : 'bg-white/10'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                downloadVideo ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* YouTube Login */}
         <div className="card space-y-3">
-          <div>
-            <p className="text-sm font-medium text-white/80">YouTube Login <span className="text-white/30 font-normal">(optional)</span></p>
-            <p className="text-xs text-white/40 mt-0.5">Only needed for age-restricted or rate-limited videos</p>
-          </div>
-
-          {loginStatus === 'done' || cookiesFile ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-accent-green">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                Signed in to YouTube
-              </div>
-              <button
-                onClick={() => { setCookiesFile(''); setLoginStatus('idle') }}
-                className="text-xs text-white/30 hover:text-white/60 transition-colors"
-              >
-                Sign out
-              </button>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-white/80">Download Video</p>
+              <p className="text-xs text-white/40 mt-0.5">
+                Download the video file so you can watch with translated subtitles in-app
+              </p>
             </div>
-          ) : (
-            <div className="space-y-2.5">
-              <button
-                onClick={async () => {
-                  setLoginStatus('logging-in')
-                  const r = await window.electronAPI.loginToYoutube()
-                  if ('cookiesFile' in r) {
-                    setCookiesFile(r.cookiesFile)
-                    setCookiesBrowser('')
-                    setLoginStatus('done')
-                  } else {
-                    setLoginStatus('idle')
-                  }
-                }}
-                disabled={loginStatus === 'logging-in'}
-                className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
-              >
-                {loginStatus === 'logging-in' ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-                    Opening sign-in window...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                    </svg>
-                    Sign in to YouTube
-                  </>
-                )}
-              </button>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-px bg-white/10" />
-                <span className="text-xs text-white/20">or</span>
-                <div className="flex-1 h-px bg-white/10" />
-              </div>
-              <button
-                onClick={async () => {
-                  const r = await window.electronAPI.selectCookiesFile()
-                  if (!('cancelled' in r)) { setCookiesFile(r.path); setCookiesBrowser(''); setLoginStatus('done') }
-                }}
-                className="text-xs text-white/40 hover:text-white/60 transition-colors w-full text-center"
-              >
-                Use cookies.txt file
-              </button>
+            <button
+              onClick={() => setDownloadVideo(!downloadVideo)}
+              className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ${
+                downloadVideo ? 'bg-primary' : 'bg-white/10'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                  downloadVideo ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+          {downloadVideo && (
+            <div className="flex items-start gap-2 bg-primary/5 border border-primary/15 rounded-lg px-3 py-2">
+              <svg className="w-3.5 h-3.5 text-accent-green shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-white/40">
+                Once done you can watch the video with translated subtitles directly in the app
+              </p>
             </div>
           )}
         </div>
@@ -263,6 +270,15 @@ export default function OptionsScreen({ videoInfo, onBack, onStart }: OptionsScr
             </button>
           </div>
         </div>
+
+        {cookiesFile && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border border-primary/15 rounded-lg text-xs text-accent-green">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            YouTube account cookies active
+          </div>
+        )}
       </div>
 
       {error && (
