@@ -18,8 +18,7 @@
     "appId": "com.rb.youtubetools",
     "productName": "RB YouTube Tools",
     "files": [
-      "out/**/*",
-      "dist/**/*"
+      "out/**/*"
     ],
     "win": {
       "icon": "build/icon.ico",
@@ -40,6 +39,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "RB YouTube Tools",
+      "menuCategory": "RB YouTube Tools",
+      "runAfterFinish": true,
+      "perMachine": false,
       "include": "build/uninstaller.nsh"
     }
   },
