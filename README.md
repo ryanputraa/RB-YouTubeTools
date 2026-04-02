@@ -2,7 +2,7 @@
 
 A desktop app for downloading and translating YouTube auto-generated captions.
 
-![RB YouTube Tools](assets/icon.png)
+![RB YouTube Tools](assets/logo-white.svg)
 
 > **Current version: 0.1.1-alpha** — actively developed. Features will be added over time.
 
