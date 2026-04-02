@@ -54,8 +54,17 @@ const api: ElectronAPI = {
   clearSavedCookies: () => ipcRenderer.invoke('clear-saved-cookies'),
   getHistory: () => ipcRenderer.invoke('get-history'),
   deleteHistoryEntry: (id) => ipcRenderer.invoke('delete-history-entry', id),
+  deleteEntryWithFolder: (id) => ipcRenderer.invoke('delete-entry-with-folder', id),
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   backfillHistory: () => ipcRenderer.invoke('backfill-history'),
+  getStreamUrl: (youtubeUrl) => ipcRenderer.invoke('get-stream-url', youtubeUrl),
+  downloadVideoNow: (url, outputDir, onProgress) => {
+    const handler = (_event: IpcRendererEvent, pct: number, msg: string) => onProgress(pct, msg)
+    ipcRenderer.on('video-download-progress', handler)
+    return ipcRenderer.invoke('download-video-now', url, outputDir).finally(() => {
+      ipcRenderer.removeListener('video-download-progress', handler)
+    })
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

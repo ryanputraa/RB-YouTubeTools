@@ -1,5 +1,5 @@
 import { ipcMain, dialog, shell, BrowserWindow, app, session } from 'electron'
-import { readFile as fsReadFile, writeFile } from 'fs/promises'
+import { readFile as fsReadFile, writeFile, rm } from 'fs/promises'
 import { existsSync, mkdirSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -9,6 +9,7 @@ import {
   getVideoInfo,
   downloadCaptions,
   downloadVideo,
+  getStreamUrl,
   downloadYtdlpBinary,
   resolveFfmpeg,
   downloadFfmpegBinary
@@ -221,6 +222,41 @@ export function registerAllIpcHandlers(): void {
   // ── history ──────────────────────────────────────────────────────────────────
   ipcMain.handle('get-history', () => loadHistory())
   ipcMain.handle('delete-history-entry', (_event, id: string) => deleteHistoryEntry(id))
+
+  ipcMain.handle('delete-entry-with-folder', async (_event, id: string) => {
+    const entries = loadHistory()
+    const entry = entries.find((e) => e.id === id)
+    if (entry?.outputDir && existsSync(entry.outputDir)) {
+      await rm(entry.outputDir, { recursive: true, force: true })
+    }
+    deleteHistoryEntry(id)
+  })
+
+  ipcMain.handle('download-video-now', async (_event, url: string, outputDir: string) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    const emit = (pct: number, msg: string) => win?.webContents.send('video-download-progress', pct, msg)
+    emit(-1, 'Fetching video info...')
+    try {
+      const cookiesFile = join(app.getPath('userData'), 'youtube-cookies.txt')
+      const cookies = existsSync(cookiesFile) ? cookiesFile : undefined
+      const videoPath = await downloadVideo(url, outputDir, emit, cookies)
+      return { videoPath }
+    } catch (e) {
+      return { error: true, message: (e as Error).message } as IpcError
+    }
+  })
+
+  ipcMain.handle('get-stream-url', async (_event, youtubeUrl: string) => {
+    try {
+      const cookiesFile = join(app.getPath('userData'), 'youtube-cookies.txt')
+      const cookies = existsSync(cookiesFile) ? cookiesFile : undefined
+      const streamUrl = await getStreamUrl(youtubeUrl, cookies)
+      return { streamUrl }
+    } catch (e) {
+      return { error: true, message: (e as Error).message } as IpcError
+    }
+  })
+
   ipcMain.handle('clear-history', () => clearHistory())
 
   // ── backfill-history ─────────────────────────────────────────────────────────
@@ -358,6 +394,18 @@ async function runJob(
       status: 'running'
     })
 
+    // Write original (untranslated) VTT so users can switch tracks in the player
+    const videoTitle = videoInfo?.title ?? 'translated'
+    const safeBase = videoTitle.replace(/[<>:"/\\|?*]/g, '_').slice(0, 80)
+    let originalVttPath: string | undefined
+    try {
+      const { srtToVtt, assembleSrt } = await import('./services/captionParser')
+      const { writeFile: wf } = await import('fs/promises')
+      const originalVtt = srtToVtt(assembleSrt(blocks))
+      originalVttPath = join(videoOutputDir, `${safeBase}_original.vtt`)
+      await wf(originalVttPath, originalVtt, 'utf-8')
+    } catch {}
+
     // Stage 3: Translate
     emit({
       stage: 'translate',
@@ -393,7 +441,6 @@ async function runJob(
       status: 'running'
     })
 
-    const videoTitle = videoInfo?.title ?? 'translated'
     const { srtPath, vttPath } = await writeSrtAndVtt(translated, videoOutputDir, videoTitle, targetLang)
 
     emit({
@@ -437,10 +484,12 @@ async function runJob(
     const result: JobResult = {
       srtPath,
       vttPath,
+      originalVttPath,
       videoPath,
       outputDir: videoOutputDir,
       blockCount: translated.length,
-      videoTitle
+      videoTitle,
+      videoId: videoInfo?.videoId
     }
 
     // Save to history
@@ -458,6 +507,7 @@ async function runJob(
         blockCount: translated.length,
         srtPath,
         vttPath,
+        originalVttPath,
         videoPath,
         outputDir: videoOutputDir
       })

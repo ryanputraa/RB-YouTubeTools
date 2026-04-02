@@ -1,4 +1,5 @@
-import { createServer, IncomingMessage, ServerResponse, Server } from 'http'
+import { createServer, IncomingMessage, ServerResponse, Server, request as httpRequest } from 'http'
+import { request as httpsRequest } from 'https'
 import { createReadStream, statSync, existsSync } from 'fs'
 import { extname } from 'path'
 
@@ -46,6 +47,32 @@ export function stopFileServer(): void {
 function handleRequest(req: IncomingMessage, res: ServerResponse): void {
   try {
     const url = new URL(req.url ?? '/', `http://127.0.0.1`)
+
+    // ── /proxy — stream a remote URL (YouTube CDN) with Range support ──────────
+    if (url.pathname === '/proxy') {
+      const remoteUrl = decodeURIComponent(url.searchParams.get('url') ?? '')
+      if (!remoteUrl.startsWith('http')) { res.writeHead(400); res.end('Bad request'); return }
+
+      const reqFn = remoteUrl.startsWith('https://') ? httpsRequest : httpRequest
+      const forwardHeaders: Record<string, string> = { 'User-Agent': 'Mozilla/5.0' }
+      if (req.headers.range) forwardHeaders['Range'] = req.headers.range
+
+      const remoteReq = reqFn(remoteUrl, { headers: forwardHeaders }, (remoteRes) => {
+        const outHeaders: Record<string, string | number> = {
+          'Content-Type': (remoteRes.headers['content-type'] as string) || 'video/mp4',
+          'Accept-Ranges': 'bytes',
+          'Access-Control-Allow-Origin': '*'
+        }
+        if (remoteRes.headers['content-range']) outHeaders['Content-Range'] = remoteRes.headers['content-range'] as string
+        if (remoteRes.headers['content-length']) outHeaders['Content-Length'] = remoteRes.headers['content-length'] as string
+        res.writeHead(remoteRes.statusCode ?? 200, outHeaders)
+        remoteRes.pipe(res)
+      })
+      remoteReq.on('error', () => { res.writeHead(502); res.end('Proxy error') })
+      remoteReq.end()
+      return
+    }
+
     const filePath = decodeURIComponent(url.searchParams.get('path') ?? '')
 
     if (!filePath || !existsSync(filePath)) {

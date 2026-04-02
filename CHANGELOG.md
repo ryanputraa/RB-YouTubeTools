@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.2.0-alpha] - 2026-04-02
+
+### New Features
+- **YouTube IFrame embed** — when a video hasn't been downloaded, the app now embeds YouTube's actual player instead of trying to stream a direct URL. Subtitles are polled every 200ms from `getCurrentTime()` and displayed in a bar below the player, avoiding cross-origin z-index limitations.
+- **Track switching (Translated / Original)** — both the local video player and the YouTube embed now let you toggle between the translated track and the original untranslated captions. The original VTT is saved alongside the translated one on every new translation.
+- **Subtitle size control** — an Aa button in both players opens a popup with − / + controls, scaling subtitles from 0.6× to 2×. Local player uses dynamic `::cue` style injection; YouTube player uses inline font-size on the overlay element.
+- **Download from YouTube player** — a "Want a better experience? Download instead" button inside the YouTube embed triggers a background download. A thin progress bar appears at the bottom of the player during download; on completion a banner asks if you want to switch to the local player.
+- **URL suggestions dropdown** — the URL input on the home screen shows a dropdown of previously used URLs on focus, with video thumbnails and titles. Arrow keys navigate; Enter selects.
+- **Three-dot context menu on history cards** — each card now has a ⋮ menu with: Copy YouTube link, Open in Explorer, and Delete (deletes the per-video folder from disk).
+- **Back button on result screen** — a small ← arrow left of the video title returns to the home screen without losing translation state.
+
+### Improvements
+- **Translation speed** — batch size raised from 20 → 50 blocks, concurrency raised to 6 simultaneous batches, all artificial delays removed. Partial translation failures now trigger a retry instead of aborting.
+- **Download speed** — `--concurrent-fragments 8` added to yt-dlp args for parallel fragment downloading.
+- **Download startup visibility** — the IPC handler emits "Fetching video info…" immediately on invocation, and yt-dlp's stderr is forwarded to the progress callback so startup activity is visible instead of showing a frozen spinner.
+- **Native fullscreen with subtitles** — local video player now uses a native `<track>` element with a Blob URL. Chromium renders it inside native fullscreen automatically; no custom fullscreen management needed.
+- **Cookies auto-loaded for inline downloads** — the `download-video-now` IPC handler automatically picks up `userData/youtube-cookies.txt` so logged-in sessions work without re-entering credentials.
+
+### Bug Fixes
+- **ArrowUp blank page** — navigating up to index −1 in the suggestions list was clearing the URL input. Fixed by stopping ArrowUp at index 0.
+- **Transparent dropdown** — `bg-surface` was undefined in the Tailwind config, making dropdowns and menus see-through. Replaced with `bg-base-card` (#1e2433) everywhere.
+- **Partial translation error** — `google-translate-api-x` throws on any partially failed batch. Added `rejectOnPartialFail: false` and extended the retry condition to catch "Partial Translation" responses.
+- **Delete deleting wrong folder** — three-dot Delete now removes `entry.outputDir` (the per-video subfolder) rather than the base RB-YouTubeTools folder.
+
+### Under the Hood
+- `VideoPlayer` rewritten to use native `<track>` + Blob URL; removed custom VTT parser, overlay div, sticky mode (replaced by native cue rendering)
+- `YouTubePlayer` component added (new): IFrame API embed, 200ms poll loop, subtitle bar below iframe, download flow, CC/track/size controls
+- `originalVttPath` saved in `JobResult` and `HistoryEntry`; `ResultScreen` reads and passes `originalVttContent` to both players
+- `electron-builder.config.cjs` updated: correct branding, `menuCategory`, `runAfterFinish: true`, portable target added
+
+---
+
 ## [0.1.1-alpha] - 2026-04-01
 
 ### New Features

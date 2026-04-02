@@ -13,7 +13,8 @@ export interface VideoInfo {
   channelName: string
   durationSeconds: number
   thumbnailUrl: string
-  availableCaptions: CaptionTrack[]
+  availableCaptions: CaptionTrack[]   // orig-language auto + all manual
+  allAutoCaptions: CaptionTrack[]     // every auto track (150+), for edge cases
 }
 
 // ── Subtitle Structures ───────────────────────────────────────────────────────
@@ -40,10 +41,12 @@ export interface JobOptions {
 export interface JobResult {
   srtPath: string
   vttPath: string
+  originalVttPath?: string
   videoPath?: string
   outputDir: string
   blockCount: number
   videoTitle: string
+  videoId?: string
 }
 
 // ── Progress Events ───────────────────────────────────────────────────────────
@@ -106,6 +109,7 @@ export interface HistoryEntry {
   blockCount: number
   srtPath: string
   vttPath: string
+  originalVttPath?: string
   videoPath?: string
   outputDir: string
 }
@@ -130,8 +134,11 @@ export interface ElectronAPI {
   clearSavedCookies: () => Promise<void>
   getHistory: () => Promise<HistoryEntry[]>
   deleteHistoryEntry: (id: string) => Promise<void>
+  deleteEntryWithFolder: (id: string) => Promise<void>
   clearHistory: () => Promise<void>
   backfillHistory: () => Promise<{ added: number }>
+  getStreamUrl: (youtubeUrl: string) => Promise<{ streamUrl: string } | IpcError>
+  downloadVideoNow: (url: string, outputDir: string, onProgress: (pct: number, msg: string) => void) => Promise<{ videoPath: string } | IpcError>
 }
 
 declare global {

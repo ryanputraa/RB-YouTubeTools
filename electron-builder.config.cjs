@@ -2,9 +2,9 @@
  * @type {import('electron-builder').Configuration}
  */
 module.exports = {
-  appId: 'com.rb.yt-video-translator',
-  productName: 'RB YT Video Translator',
-  copyright: 'Copyright © 2024 RB',
+  appId: 'com.rb.youtubetools',
+  productName: 'RB YouTube Tools',
+  copyright: 'Copyright © 2026 Ryan Budianto',
   directories: {
     buildResources: 'build',
     output: 'dist'
@@ -18,7 +18,10 @@ module.exports = {
     }
   ],
   win: {
-    target: [{ target: 'nsis', arch: ['x64'] }],
+    target: [
+      { target: 'nsis', arch: ['x64'] },
+      { target: 'portable', arch: ['x64'] }
+    ],
     icon: 'build/icon.ico'
   },
   nsis: {
@@ -26,7 +29,11 @@ module.exports = {
     allowToChangeInstallationDirectory: true,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
-    shortcutName: 'RB YT Video Translator'
+    shortcutName: 'RB YouTube Tools',
+    menuCategory: 'RB YouTube Tools',
+    runAfterFinish: true,
+    perMachine: false,
+    include: 'build/uninstaller.nsh'
   },
   mac: {
     target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],

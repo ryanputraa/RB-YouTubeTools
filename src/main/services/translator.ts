@@ -1,7 +1,8 @@
 import type { SubtitleBlock } from '@shared/types'
 
-const BATCH_SIZE = 20
-const DELAY_MS = 300
+const BATCH_SIZE = 50
+const CONCURRENT_BATCHES = 6
+const DELAY_MS = 0
 const MAX_RETRIES = 3
 
 type TranslateProgressCallback = (pct: number, done: number, total: number) => void
@@ -21,25 +22,29 @@ export async function translateBlocks(
   const translated: SubtitleBlock[] = [...blocks]
   let done = 0
 
+  // Split into batches, then process CONCURRENT_BATCHES at a time
+  const batches: { start: number; texts: string[] }[] = []
   for (let i = 0; i < blocks.length; i += BATCH_SIZE) {
-    const batchBlocks = blocks.slice(i, i + BATCH_SIZE)
-    const texts = batchBlocks.map((b) => b.text)
+    batches.push({ start: i, texts: blocks.slice(i, i + BATCH_SIZE).map((b) => b.text) })
+  }
 
-    const translatedTexts = await translateBatch(translate, texts, targetLang)
+  for (let i = 0; i < batches.length; i += CONCURRENT_BATCHES) {
+    const chunk = batches.slice(i, i + CONCURRENT_BATCHES)
 
-    for (let j = 0; j < batchBlocks.length; j++) {
-      translated[i + j] = {
-        ...batchBlocks[j],
-        text: translatedTexts[j] ?? batchBlocks[j].text
+    const results = await Promise.all(
+      chunk.map((b) => translateBatch(translate, b.texts, targetLang))
+    )
+
+    for (let c = 0; c < chunk.length; c++) {
+      const { start, texts } = chunk[c]
+      const translatedTexts = results[c]
+      for (let j = 0; j < texts.length; j++) {
+        translated[start + j] = { ...blocks[start + j], text: translatedTexts[j] ?? blocks[start + j].text }
       }
+      done += texts.length
     }
 
-    done += batchBlocks.length
     onProgress?.(Math.round((done / blocks.length) * 100), done, blocks.length)
-
-    if (i + BATCH_SIZE < blocks.length) {
-      await sleep(DELAY_MS)
-    }
   }
 
   return translated
@@ -55,14 +60,17 @@ async function translateBatch(
     // Pass array directly — the library returns an array of results in the same order.
     // This avoids the separator join/split approach which breaks on Korean/CJK input
     // because Google Translate alters the separator text.
-    const results = await translate(texts, { to: targetLang })
+    const results = await translate(texts, { to: targetLang, rejectOnPartialFail: false })
     const out = Array.isArray(results) ? results : [results]
+    // null means that specific item failed — fall back to original text via caller
     return out.map((r: any) => (r?.text ?? '').trim())
   } catch (e: any) {
-    const isRateLimit =
-      e?.message?.includes('429') || e?.message?.includes('Too Many Requests')
+    const isRetryable =
+      e?.message?.includes('429') ||
+      e?.message?.includes('Too Many Requests') ||
+      e?.message?.includes('Partial Translation')
 
-    if (isRateLimit && retryCount < MAX_RETRIES) {
+    if (isRetryable && retryCount < MAX_RETRIES) {
       const delay = DELAY_MS * Math.pow(2, retryCount + 1)
       await sleep(delay)
       return translateBatch(translate, texts, targetLang, retryCount + 1)

@@ -146,7 +146,7 @@ export default function App(): JSX.Element {
             </button>
 
             {profileOpen && loginStatus !== 'logging-in' && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 bg-surface border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="absolute right-0 top-full mt-1.5 w-52 bg-base-card border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
                 {isLoggedIn ? (
                   <>
                     <div className="px-3 py-2.5 border-b border-white/5">

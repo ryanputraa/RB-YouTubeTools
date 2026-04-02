@@ -271,21 +271,32 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
           } catch { return code }
         }
 
-        // automatic_captions contains every language YouTube can auto-translate to (150+).
-        // We only want the original spoken language tracks, which have a '-orig' suffix
-        // (e.g. 'ko-orig' means Korean is the original language of the video).
+        // availableCaptions: only -orig auto tracks (original spoken language) + all manual subs
+        // allAutoCaptions: every auto track YouTube offers (150+ translated variants)
+        const allAutoCaptions: CaptionTrack[] = []
+
         if (data.automatic_captions && typeof data.automatic_captions === 'object') {
           for (const lang of Object.keys(data.automatic_captions)) {
-            if (!lang.endsWith('-orig')) continue
-            const baseLang = lang.replace(/-orig$/, '')  // 'ko-orig' → 'ko'
-            const key = `auto:${baseLang}`
-            if (!seen.has(key)) {
-              seen.add(key)
-              availableCaptions.push({ lang: baseLang, langName: getLangName(baseLang), isAuto: true })
+            const baseLang = lang.replace(/-orig$/, '')
+            const isOrig = lang.endsWith('-orig')
+
+            // Always add to allAutoCaptions (full list)
+            const allKey = `all-auto:${baseLang}`
+            if (!seen.has(allKey)) {
+              seen.add(allKey)
+              allAutoCaptions.push({ lang: baseLang, langName: getLangName(baseLang), isAuto: true })
+            }
+
+            // Only add orig tracks to availableCaptions
+            if (isOrig) {
+              const key = `auto:${baseLang}`
+              if (!seen.has(key)) {
+                seen.add(key)
+                availableCaptions.push({ lang: baseLang, langName: getLangName(baseLang), isAuto: true })
+              }
             }
           }
         }
-        // subtitles contains manually uploaded caption tracks — always include these
         if (data.subtitles && typeof data.subtitles === 'object') {
           for (const lang of Object.keys(data.subtitles)) {
             if (!seen.has(`manual:${lang}`)) {
@@ -302,12 +313,41 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
           channelName: data.channel || data.uploader || 'Unknown Channel',
           durationSeconds: data.duration || 0,
           thumbnailUrl: data.thumbnail || '',
-          availableCaptions
+          availableCaptions,
+          allAutoCaptions
         }
         resolve(info)
       } catch (e) {
         reject(new Error(`Failed to parse yt-dlp output: ${(e as Error).message}`))
       }
+    })
+
+    proc.on('error', (e) => reject(new Error(`Failed to spawn yt-dlp: ${e.message}`)))
+  })
+}
+
+// ── Get Stream URL ────────────────────────────────────────────────────────────
+
+export async function getStreamUrl(url: string, cookiesFile?: string): Promise<string> {
+  const { path: bin } = await resolveBinary()
+
+  return new Promise((resolve, reject) => {
+    // Use muxed format codes: 22=720p MP4, 18=360p MP4 — guaranteed single URL
+    const args = ['-f', '22/18/best[ext=mp4]/best', '--get-url', '--no-playlist', ...getCommonArgs()]
+    if (cookiesFile) args.push('--cookies', cookiesFile)
+    args.push(url)
+
+    const proc = spawn(bin, args, { encoding: 'utf-8' } as any)
+    let stdout = ''
+    let stderr = ''
+
+    proc.stdout.on('data', (d: Buffer) => (stdout += d.toString()))
+    proc.stderr.on('data', (d: Buffer) => (stderr += d.toString()))
+
+    proc.on('close', () => {
+      const urls = stdout.trim().split('\n').filter(Boolean)
+      if (urls.length === 0) reject(new Error(`Could not get stream URL: ${stderr}`))
+      else resolve(urls[0])
     })
 
     proc.on('error', (e) => reject(new Error(`Failed to spawn yt-dlp: ${e.message}`)))
@@ -423,7 +463,8 @@ async function tryDownloadCaptions(
 export async function downloadVideo(
   url: string,
   outputDir: string,
-  onProgress: (pct: number, msg: string) => void
+  onProgress: (pct: number, msg: string) => void,
+  cookiesFile?: string
 ): Promise<string> {
   const { path: bin } = await resolveBinary()
 
@@ -433,12 +474,14 @@ export async function downloadVideo(
   const args = [
     '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
     '--merge-output-format', 'mp4',
+    '--concurrent-fragments', '8',
     '--no-playlist',
     ...getCommonArgs(),
-    '-o', outputTemplate,
-    '--newline',
-    url
   ]
+
+  if (cookiesFile) args.push('--cookies', cookiesFile)
+
+  args.push('-o', outputTemplate, '--newline', url)
 
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args)
@@ -472,7 +515,12 @@ export async function downloadVideo(
     })
 
     proc.stderr.on('data', (d: Buffer) => {
-      stderr += d.toString()
+      const line = d.toString().trim()
+      stderr += line + '\n'
+      // Forward stderr info lines so UI shows startup activity
+      if (line && !line.startsWith('WARNING') && !line.startsWith('ERROR')) {
+        onProgress(-1, line)
+      }
     })
 
     proc.on('close', (code) => {

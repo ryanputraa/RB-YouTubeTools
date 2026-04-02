@@ -30,7 +30,7 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
   const [targetLang, setTargetLang] = useState('en')
   const [sourceKey, setSourceKey] = useState('')  // '' = auto-detect
   const [showAllAuto, setShowAllAuto] = useState(false)
-  const [downloadVideo, setDownloadVideo] = useState(true)
+  const [downloadVideo, setDownloadVideo] = useState(false)
   const [outputDir, setOutputDir] = useState('')
   const [langSearch, setLangSearch] = useState('')
   const [loading, setLoading] = useState(false)
@@ -95,8 +95,10 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
   const caps = videoInfo.availableCaptions ?? []
   const origAutoCaps = caps.filter((c) => c.isAuto)   // only original-language auto tracks
   const manualCaps = caps.filter((c) => !c.isAuto)
-  const visibleAutoCaps = showAllAuto ? origAutoCaps : origAutoCaps.slice(0, 5)
-  const selectedSource = caps.find((c) => makeKey(c) === sourceKey)
+  const allAutoFull = videoInfo.allAutoCaptions ?? []
+  const visibleAutoCaps = showAllAuto ? allAutoFull : origAutoCaps
+  const allCapsForLookup = showAllAuto ? [...allAutoFull, ...manualCaps] : caps
+  const selectedSource = allCapsForLookup.find((c) => makeKey(c) === sourceKey)
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-6 space-y-5">
@@ -142,12 +144,12 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
                 <label className="text-sm font-medium text-white/80">Caption Source</label>
                 <p className="text-xs text-white/40 mt-0.5">Which caption track to translate from</p>
               </div>
-              {origAutoCaps.length > 5 && (
+              {allAutoFull.length > origAutoCaps.length && (
                 <button
                   onClick={() => setShowAllAuto((v) => !v)}
                   className="text-xs text-white/30 hover:text-white/60 transition-colors shrink-0"
                 >
-                  {showAllAuto ? 'Show less' : `Show all (${origAutoCaps.length})`}
+                  {showAllAuto ? 'Show less' : `Show all (${allAutoFull.length})`}
                 </button>
               )}
             </div>
