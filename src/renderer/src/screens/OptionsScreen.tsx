@@ -6,7 +6,7 @@ interface OptionsScreenProps {
   videoInfo: VideoInfo
   cookiesFile: string  // lifted from App-level login state
   onBack: () => void
-  onStart: (jobId: string, opts: { downloadVideo: boolean; targetLang: string; outputDir: string }) => void
+  onStart: (jobId: string, opts: { downloadVideo: boolean }) => void
 }
 
 function formatDuration(seconds: number): string {
@@ -79,7 +79,7 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
         return
       }
 
-      onStart(result.jobId, { downloadVideo, targetLang, outputDir })
+      onStart(result.jobId, { downloadVideo })
     } catch (e) {
       setError((e as Error).message)
       setLoading(false)

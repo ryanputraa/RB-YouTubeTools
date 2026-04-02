@@ -39,7 +39,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "RB YouTube Tools"
+      "shortcutName": "RB YouTube Tools",
+      "include": "build/uninstaller.nsh"
     }
   },
   "dependencies": {
