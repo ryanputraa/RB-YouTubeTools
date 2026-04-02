@@ -22,9 +22,14 @@ function captionLabel(track: CaptionTrack): string {
   return `${track.langName} (${track.isAuto ? 'auto' : 'manual'})`
 }
 
+// sourceKey format: "auto:ko" | "manual:ko" | "" (auto-detect)
+function makeKey(c: CaptionTrack) { return `${c.isAuto ? 'auto' : 'manual'}:${c.lang}` }
+function keyToLang(key: string) { return key.split(':')[1] ?? '' }
+
 export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart }: OptionsScreenProps): JSX.Element {
   const [targetLang, setTargetLang] = useState('en')
-  const [sourceLang, setSourceLang] = useState('')  // '' = auto (default yt-dlp chain)
+  const [sourceKey, setSourceKey] = useState('')  // '' = auto-detect
+  const [showAllAuto, setShowAllAuto] = useState(false)
   const [downloadVideo, setDownloadVideo] = useState(true)
   const [outputDir, setOutputDir] = useState('')
   const [langSearch, setLangSearch] = useState('')
@@ -35,12 +40,12 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
     window.electronAPI.getDefaultOutputDir().then(setOutputDir)
   }, [])
 
-  // Pre-select source lang: prefer Korean auto-captions if available (common use case)
+  // Pre-select source: prefer Korean auto-captions if available
   useEffect(() => {
     const caps = videoInfo.availableCaptions
     if (!caps || caps.length === 0) return
     const ko = caps.find((c) => c.lang === 'ko' && c.isAuto)
-    if (ko) setSourceLang('ko')
+    if (ko) setSourceKey(makeKey(ko))
   }, [videoInfo])
 
   const filteredLangs = LANGUAGES.filter(
@@ -67,7 +72,7 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
       const result = await window.electronAPI.startJob({
         url: videoInfo.url,
         targetLang,
-        sourceLang: sourceLang || undefined,
+        sourceLang: sourceKey ? keyToLang(sourceKey) : undefined,
         downloadVideo,
         outputDir,
         cookiesFile: cookiesFile || undefined
@@ -88,9 +93,10 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
 
   const selectedLang = LANGUAGES.find((l) => l.code === targetLang)
   const caps = videoInfo.availableCaptions ?? []
-  const autoCaps = caps.filter((c) => c.isAuto)
+  const origAutoCaps = caps.filter((c) => c.isAuto)   // only original-language auto tracks
   const manualCaps = caps.filter((c) => !c.isAuto)
-  const selectedSource = caps.find((c) => c.lang === sourceLang)
+  const visibleAutoCaps = showAllAuto ? origAutoCaps : origAutoCaps.slice(0, 5)
+  const selectedSource = caps.find((c) => makeKey(c) === sourceKey)
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-6 space-y-5">
@@ -131,27 +137,37 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
         {/* Caption source selector */}
         {caps.length > 0 && (
           <div className="card space-y-3">
-            <div>
-              <label className="text-sm font-medium text-white/80">Caption Source</label>
-              <p className="text-xs text-white/40 mt-0.5">Which caption track to translate from</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-medium text-white/80">Caption Source</label>
+                <p className="text-xs text-white/40 mt-0.5">Which caption track to translate from</p>
+              </div>
+              {origAutoCaps.length > 5 && (
+                <button
+                  onClick={() => setShowAllAuto((v) => !v)}
+                  className="text-xs text-white/30 hover:text-white/60 transition-colors shrink-0"
+                >
+                  {showAllAuto ? 'Show less' : `Show all (${origAutoCaps.length})`}
+                </button>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => setSourceLang('')}
+                onClick={() => setSourceKey('')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  sourceLang === ''
+                  sourceKey === ''
                     ? 'bg-primary/30 text-accent-green border border-primary/40'
                     : 'bg-white/5 text-white/50 hover:bg-white/10 border border-transparent'
                 }`}
               >
                 Auto-detect
               </button>
-              {autoCaps.map((c) => (
+              {visibleAutoCaps.map((c) => (
                 <button
                   key={`auto-${c.lang}`}
-                  onClick={() => setSourceLang(c.lang)}
+                  onClick={() => setSourceKey(makeKey(c))}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    sourceLang === c.lang
+                    sourceKey === makeKey(c)
                       ? 'bg-primary/30 text-accent-green border border-primary/40'
                       : 'bg-white/5 text-white/50 hover:bg-white/10 border border-transparent'
                   }`}
@@ -162,9 +178,9 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
               {manualCaps.map((c) => (
                 <button
                   key={`manual-${c.lang}`}
-                  onClick={() => setSourceLang(c.lang)}
+                  onClick={() => setSourceKey(makeKey(c))}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    sourceLang === c.lang
+                    sourceKey === makeKey(c)
                       ? 'bg-primary/30 text-accent-green border border-primary/40'
                       : 'bg-white/5 text-white/50 hover:bg-white/10 border border-transparent'
                   }`}

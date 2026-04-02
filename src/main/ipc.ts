@@ -187,7 +187,8 @@ export function registerAllIpcHandlers(): void {
             lines.push(`${domain}\t${flag}\t${path}\t${secure}\t${expiry}\t${c.name}\t${c.value}`)
           }
 
-          const cookiesFile = join(tmpdir(), 'rb-ytt-cookies.txt')
+          // Save to userData (not tmpdir) so it persists across app restarts
+          const cookiesFile = join(app.getPath('userData'), 'youtube-cookies.txt')
           await writeFile(cookiesFile, lines.join('\n'), 'utf-8')
 
           loginWin.close()
@@ -201,6 +202,20 @@ export function registerAllIpcHandlers(): void {
         resolve({ cancelled: true })
       })
     })
+  })
+
+  // ── saved cookies ─────────────────────────────────────────────────────────────
+  ipcMain.handle('get-saved-cookies', (): { cookiesFile: string } | null => {
+    const p = join(app.getPath('userData'), 'youtube-cookies.txt')
+    return existsSync(p) ? { cookiesFile: p } : null
+  })
+
+  ipcMain.handle('clear-saved-cookies', async () => {
+    const p = join(app.getPath('userData'), 'youtube-cookies.txt')
+    if (existsSync(p)) {
+      const { unlink } = await import('fs/promises')
+      await unlink(p).catch(() => {})
+    }
   })
 
   // ── history ──────────────────────────────────────────────────────────────────

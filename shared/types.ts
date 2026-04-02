@@ -126,6 +126,8 @@ export interface ElectronAPI {
   onJobProgress: (callback: (event: JobProgressEvent) => void) => () => void
   onYtdlpDownloadProgress: (callback: (pct: number, msg: string) => void) => () => void
   loginToYoutube: () => Promise<{ cookiesFile: string } | { cancelled: true } | IpcError>
+  getSavedCookies: () => Promise<{ cookiesFile: string } | null>
+  clearSavedCookies: () => Promise<void>
   getHistory: () => Promise<HistoryEntry[]>
   deleteHistoryEntry: (id: string) => Promise<void>
   clearHistory: () => Promise<void>

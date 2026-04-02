@@ -50,6 +50,8 @@ const api: ElectronAPI = {
   },
 
   loginToYoutube: () => ipcRenderer.invoke('login-to-youtube'),
+  getSavedCookies: () => ipcRenderer.invoke('get-saved-cookies'),
+  clearSavedCookies: () => ipcRenderer.invoke('clear-saved-cookies'),
   getHistory: () => ipcRenderer.invoke('get-history'),
   deleteHistoryEntry: (id) => ipcRenderer.invoke('delete-history-entry', id),
   clearHistory: () => ipcRenderer.invoke('clear-history'),

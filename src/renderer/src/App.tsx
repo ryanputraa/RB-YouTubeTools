@@ -26,8 +26,10 @@ export default function App(): JSX.Element {
   useEffect(() => {
     Promise.all([
       window.electronAPI.checkYtdlp(),
-      window.electronAPI.checkFfmpeg()
-    ]).then(([yt, ff]) => {
+      window.electronAPI.checkFfmpeg(),
+      window.electronAPI.getSavedCookies()
+    ]).then(([yt, ff, saved]) => {
+      if (saved) { setCookiesFile(saved.cookiesFile); setLoginStatus('done') }
       setScreen(yt.found && ff.found ? 'menu' : 'setup')
     })
   }, [])
@@ -75,7 +77,12 @@ export default function App(): JSX.Element {
     else setLoginStatus('idle')
   }
 
-  const handleSignOut = () => { setCookiesFile(''); setLoginStatus('idle'); setProfileOpen(false) }
+  const handleSignOut = () => {
+    setCookiesFile('')
+    setLoginStatus('idle')
+    setProfileOpen(false)
+    window.electronAPI.clearSavedCookies()
+  }
 
   const isLoggedIn = loginStatus === 'done' || !!cookiesFile
 
