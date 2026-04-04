@@ -19,21 +19,14 @@ module.exports = {
   ],
   win: {
     target: [
-      { target: 'nsis', arch: ['x64'] },
+      { target: 'squirrel', arch: ['x64'] },
       { target: 'portable', arch: ['x64'] }
     ],
     icon: 'build/icon.ico'
   },
-  nsis: {
-    oneClick: false,
-    allowToChangeInstallationDirectory: true,
-    createDesktopShortcut: true,
-    createStartMenuShortcut: true,
-    shortcutName: 'RB YouTube Tools',
-    menuCategory: 'RB YouTube Tools',
-    runAfterFinish: true,
-    perMachine: false,
-    include: 'build/uninstaller.nsh'
+  squirrelWindows: {
+    iconUrl: 'https://raw.githubusercontent.com/ryanbudianto/RB-YouTube-Tools/master/build/icon.ico',
+    useAppIdAsId: true
   },
   mac: {
     target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],

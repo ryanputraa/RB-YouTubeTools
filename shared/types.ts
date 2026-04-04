@@ -26,6 +26,16 @@ export interface SubtitleBlock {
   text: string      // plain text, HTML tags stripped
 }
 
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+export type VideoQuality = 'best' | '2160p' | '1080p' | '720p' | '480p' | '360p'
+
+export interface AppSettings {
+  outputDir: string
+  videoQuality: VideoQuality
+  wipeOnUninstall: boolean
+}
+
 // ── Job ───────────────────────────────────────────────────────────────────────
 
 export interface JobOptions {
@@ -33,6 +43,7 @@ export interface JobOptions {
   targetLang: string   // BCP-47 code e.g. "fr", "es", "zh-TW"
   sourceLang?: string  // caption track to translate from (default: auto-detect 'en')
   downloadVideo: boolean
+  videoQuality?: VideoQuality
   outputDir: string
   cookiesBrowser?: string  // e.g. "chrome", "firefox", "edge"
   cookiesFile?: string     // path to a cookies.txt file
@@ -139,6 +150,11 @@ export interface ElectronAPI {
   backfillHistory: () => Promise<{ added: number }>
   getStreamUrl: (youtubeUrl: string) => Promise<{ streamUrl: string } | IpcError>
   downloadVideoNow: (url: string, outputDir: string, onProgress: (pct: number, msg: string) => void) => Promise<{ videoPath: string } | IpcError>
+  getSettings: () => Promise<AppSettings>
+  saveSettings: (settings: AppSettings) => Promise<void>
+  getAppVersion: () => Promise<string>
+  uninstallApp: () => Promise<void>
+  clearOutputDir: () => Promise<void>
 }
 
 declare global {

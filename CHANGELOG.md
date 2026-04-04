@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0-alpha] - 2026-04-04
+
+### New Features
+- **Settings page** — gear icon left of the Sign In button opens a dedicated settings screen with: default output directory (browse + open-in-Explorer), default video quality, "delete videos on uninstall" checkbox, clear translation history, delete all downloads, and an uninstall shortcut.
+- **Video quality selector** — when "Download Video" is enabled in the options screen, a row of quality chips appears (Best, 4K, 1080p, 720p, 480p, 360p). Defaults to the value saved in Settings; overridable per-job. Quality is mapped to the correct yt-dlp format selector.
+- **Delete all downloads** — single action in Settings that removes the entire output folder from disk and clears history in one shot (history alone would be re-populated by backfill anyway).
+- **Squirrel installer** — switched from NSIS to Squirrel.Windows. Silent ~1-second install, automatic desktop shortcut and Start Menu entry, seamless in-place delta updates. On uninstall, if "delete videos on uninstall" is enabled in Settings, the output folder is wiped automatically.
+
+### Improvements
+- **Arrow key seek fixed** — native `<video controls>` element was handling ArrowLeft/Right first and seeking proportionally. Fixed by registering the ±10s handler in the capture phase (`addEventListener('keydown', handler, true)`), so it intercepts before the native control.
+- **Menu bar removed** — File / Edit / View native menu bar is gone (`Menu.setApplicationMenu(null)`).
+- **App version badge** — version number shown in the bottom-right corner of the menu screen and in the Settings page. Injected at build time from `package.json` via a Vite `define`.
+- **Default output dir respects settings** — `get-default-output-dir` and `backfill-history` now both read from `settings.json` instead of a hardcoded `Videos/RB-YouTubeTools` path.
+- **Confirmation dialogs** — destructive actions in Settings (clear history, delete downloads, uninstall) now show a modal overlay with Cancel / Confirm instead of requiring two clicks on the same button.
+
+### Rename
+- Project and folder slug renamed from `RB-YouTubeTools` to `RB-YouTube-Tools` throughout the codebase, README, and output directory default path. GitHub repo updated to match.
+
+---
+
 ## [0.2.0-alpha] - 2026-04-02
 
 ### New Features

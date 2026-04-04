@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
-import type { ElectronAPI, JobProgressEvent } from '@shared/types'
+import type { ElectronAPI, JobProgressEvent, AppSettings } from '@shared/types'
 
 const api: ElectronAPI = {
   getFileServerPort: () => ipcRenderer.invoke('get-file-server-port'),
@@ -65,6 +65,11 @@ const api: ElectronAPI = {
       ipcRenderer.removeListener('video-download-progress', handler)
     })
   },
+  getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('get-settings'),
+  saveSettings: (settings: AppSettings): Promise<void> => ipcRenderer.invoke('save-settings', settings),
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
+  uninstallApp: (): Promise<void> => ipcRenderer.invoke('uninstall-app'),
+  clearOutputDir: (): Promise<void> => ipcRenderer.invoke('clear-output-dir'),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

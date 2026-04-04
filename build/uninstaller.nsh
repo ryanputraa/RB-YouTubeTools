@@ -3,8 +3,8 @@
 
 !macro customUnInstall
   ; Ask user if they want to delete downloaded videos
-  MessageBox MB_YESNO|MB_ICONQUESTION "Do you also want to delete your downloaded videos from Videos\RB-YouTubeTools?$\n$\nThis will permanently delete all translated captions and downloaded videos." IDNO skip_delete
-    StrCpy $4 "$VIDEOS\RB-YouTubeTools"
+  MessageBox MB_YESNO|MB_ICONQUESTION "Do you also want to delete your downloaded videos from Videos\RB-YouTube-Tools?$\n$\nThis will permanently delete all translated captions and downloaded videos." IDNO skip_delete
+    StrCpy $4 "$VIDEOS\RB-YouTube-Tools"
     ${If} ${FileExists} "$4\*.*"
       RMDir /r "$4"
     ${EndIf}

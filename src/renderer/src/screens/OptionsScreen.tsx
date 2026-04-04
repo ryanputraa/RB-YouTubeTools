@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import type { VideoInfo, CaptionTrack } from '@shared/types'
+import type { VideoInfo, CaptionTrack, VideoQuality } from '@shared/types'
 import { LANGUAGES } from '../lib/languages'
+
+const QUALITY_OPTIONS: { value: VideoQuality; label: string }[] = [
+  { value: 'best',  label: 'Best' },
+  { value: '2160p', label: '4K'   },
+  { value: '1080p', label: '1080p' },
+  { value: '720p',  label: '720p'  },
+  { value: '480p',  label: '480p'  },
+  { value: '360p',  label: '360p'  },
+]
 
 interface OptionsScreenProps {
   videoInfo: VideoInfo
@@ -31,6 +40,7 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
   const [sourceKey, setSourceKey] = useState('')  // '' = auto-detect
   const [showAllAuto, setShowAllAuto] = useState(false)
   const [downloadVideo, setDownloadVideo] = useState(false)
+  const [videoQuality, setVideoQuality] = useState<VideoQuality>('best')
   const [outputDir, setOutputDir] = useState('')
   const [langSearch, setLangSearch] = useState('')
   const [loading, setLoading] = useState(false)
@@ -38,6 +48,7 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
 
   useEffect(() => {
     window.electronAPI.getDefaultOutputDir().then(setOutputDir)
+    window.electronAPI.getSettings().then((s) => setVideoQuality(s.videoQuality))
   }, [])
 
   // Pre-select source: prefer Korean auto-captions if available
@@ -74,6 +85,7 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
         targetLang,
         sourceLang: sourceKey ? keyToLang(sourceKey) : undefined,
         downloadVideo,
+        videoQuality: downloadVideo ? videoQuality : undefined,
         outputDir,
         cookiesFile: cookiesFile || undefined
       })
@@ -260,14 +272,35 @@ export default function OptionsScreen({ videoInfo, cookiesFile, onBack, onStart 
             </button>
           </div>
           {downloadVideo && (
-            <div className="flex items-start gap-2 bg-primary/5 border border-primary/15 rounded-lg px-3 py-2">
-              <svg className="w-3.5 h-3.5 text-accent-green shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-xs text-white/40">
-                Once done you can watch the video with translated subtitles directly in the app
-              </p>
-            </div>
+            <>
+              {/* Quality selector */}
+              <div className="space-y-2">
+                <p className="text-xs text-white/50 font-medium">Quality</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUALITY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setVideoQuality(opt.value)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                        videoQuality === opt.value
+                          ? 'bg-primary/30 text-accent-green border border-primary/40'
+                          : 'bg-white/5 text-white/50 hover:bg-white/10 border border-transparent'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-start gap-2 bg-primary/5 border border-primary/15 rounded-lg px-3 py-2">
+                <svg className="w-3.5 h-3.5 text-accent-green shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-xs text-white/40">
+                  Once done you can watch the video with translated subtitles directly in the app
+                </p>
+              </div>
+            </>
           )}
         </div>
 

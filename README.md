@@ -4,13 +4,13 @@
 
 A desktop app for downloading and translating YouTube auto-generated captions.
 
-> **Current version: 0.2.0-alpha** — actively developed. Features will be added over time.
+> **Current version: 0.3.0-alpha** — actively developed. Features will be added over time.
 
 ---
 
 ## Background
 
-If you want to hear the story of why this exists: [ryanbudianto.com/projects/hobby/rb-youtubetools](https://www.ryanbudianto.com/projects/hobby/rb-youtubetools)
+If you want to hear the story of why this exists: [ryanbudianto.com/projects/hobby/rb-youtube-tools](https://www.ryanbudianto.com/projects/hobby/rb-youtube-tools)
 
 ---
 
@@ -22,7 +22,7 @@ Give it a YouTube URL, pick a source caption track and a target language, and it
 
 ## Download
 
-Head to [Releases](https://github.com/ryanputraa/RB-YouTubeTools/releases) and grab the latest:
+Head to [Releases](https://github.com/ryanputraa/RB-YouTube-Tools/releases) and grab the latest:
 
 | File | Description |
 |------|-------------|
@@ -50,9 +50,16 @@ Both tools are saved to your app data folder. You don't need to install them sep
   - CC toggle, track switching (Translated / Original), subtitle size control
   - Download button inside the player — pulls the video in the background and offers to switch to local playback when done
 - **Local video player** — full native playback after downloading
-  - Arrow keys skip ±10 seconds
-  - Native fullscreen with subtitles (works without any custom intercept)
+  - Arrow keys skip ±10 seconds (YouTube-style)
+  - Native fullscreen with subtitles
   - CC toggle, track switching (Translated / Original), subtitle size control (Aa button)
+- **Video quality selector** — choose download quality per-job (Best, 4K, 1080p, 720p, 480p, 360p), with a default saved in Settings
+- **Settings page** — gear icon in header
+  - Default output directory (browse + open)
+  - Default video quality
+  - Delete videos folder on uninstall option
+  - Clear translation history / Delete all downloads
+  - Uninstall shortcut
 - **Translation history** — last 50 translations saved, displayed as a thumbnail grid. Opening history also scans your output folder and imports any older translations automatically
   - Three-dot menu per card: Copy YouTube link, Open in Explorer, Delete folder
   - URL input suggests previously used links with thumbnails
@@ -66,7 +73,7 @@ Both tools are saved to your app data folder. You don't need to install them sep
 2. On the options screen:
    - Pick the caption source (auto-selects Korean if available)
    - Pick your target language
-   - Toggle "Download Video" on if you want local playback (on by default)
+   - Toggle "Download Video" on if you want local playback, and select a quality
 3. Hit Start — watch the progress screen
 4. When done: read the translated captions, watch via YouTube embed, or watch locally with subs overlaid
 
@@ -82,7 +89,7 @@ Alternatively, export a `cookies.txt` file from your browser (Netscape format) a
 
 ## Output
 
-Translated files are saved to `Videos/RB-YouTubeTools/<video title>/` by default. You can change the output folder per-job in the options screen. Each job produces:
+Translated files are saved to `Videos/RB-YouTube-Tools/<video title>/` by default (configurable in Settings). Each job produces:
 
 - `title_lang.srt` — standard subtitle file, works in VLC and most players
 - `title_lang.vtt` — translated WebVTT, used for in-app playback
@@ -93,8 +100,8 @@ Translated files are saved to `Videos/RB-YouTubeTools/<video title>/` by default
 ## Building from source
 
 ```bash
-git clone https://github.com/ryanputraa/RB-YouTubeTools
-cd RB-YouTubeTools
+git clone https://github.com/ryanputraa/RB-YouTube-Tools
+cd RB-YouTube-Tools
 npm install
 
 # Dev mode

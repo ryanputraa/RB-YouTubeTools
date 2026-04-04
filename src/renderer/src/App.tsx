@@ -6,9 +6,10 @@ import HomeScreen from './screens/HomeScreen'
 import OptionsScreen from './screens/OptionsScreen'
 import ProgressScreen from './screens/ProgressScreen'
 import ResultScreen from './screens/ResultScreen'
+import SettingsScreen from './screens/SettingsScreen'
 import Logo from './components/Logo'
 
-type AppScreen = 'checking' | 'setup' | 'menu' | 'home' | 'options' | 'progress' | 'result'
+type AppScreen = 'checking' | 'setup' | 'menu' | 'home' | 'options' | 'progress' | 'result' | 'settings'
 
 export default function App(): JSX.Element {
   const [screen, setScreen] = useState<AppScreen>('checking')
@@ -16,6 +17,7 @@ export default function App(): JSX.Element {
   const [jobId, setJobId] = useState<string | null>(null)
   const [jobResult, setJobResult] = useState<JobResult | null>(null)
   const [downloadVideo, setDownloadVideo] = useState(true)
+  const [prevScreen, setPrevScreen] = useState<AppScreen>('menu')
 
   // Lifted YouTube login state — persists across screen transitions
   const [cookiesFile, setCookiesFile] = useState('')
@@ -86,6 +88,15 @@ export default function App(): JSX.Element {
 
   const isLoggedIn = loginStatus === 'done' || !!cookiesFile
 
+  const handleOpenSettings = () => {
+    setPrevScreen(screen)
+    setScreen('settings')
+  }
+
+  const handleCloseSettings = () => {
+    setScreen(prevScreen === 'settings' ? 'menu' : prevScreen)
+  }
+
   // Screens where header is visible
   const showHeader = screen !== 'checking' && screen !== 'setup'
 
@@ -117,8 +128,25 @@ export default function App(): JSX.Element {
             </span>
           </button>
 
-          {/* Profile dropdown */}
-          <div className="relative" ref={profileRef}>
+          {/* Right-side controls: settings gear + profile */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleOpenSettings}
+              className={`p-1.5 rounded-lg transition-colors ${
+                screen === 'settings'
+                  ? 'bg-primary/20 text-accent-green'
+                  : 'text-white/30 hover:text-white hover:bg-white/5'
+              }`}
+              title="Settings"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+
+            {/* Profile dropdown */}
+            <div className="relative" ref={profileRef}>
             <button
               onClick={() => setProfileOpen((o) => !o)}
               className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-colors ${
@@ -182,7 +210,8 @@ export default function App(): JSX.Element {
                 )}
               </div>
             )}
-          </div>
+            </div>{/* end profile ref */}
+          </div>{/* end right-side controls */}
         </header>
       )}
 
@@ -231,6 +260,10 @@ export default function App(): JSX.Element {
             result={jobResult}
             onReset={handleReset}
           />
+        )}
+
+        {screen === 'settings' && (
+          <SettingsScreen onBack={handleCloseSettings} />
         )}
       </main>
     </div>

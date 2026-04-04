@@ -70,18 +70,19 @@ export default function VideoPlayer({ videoUrl, vttContent, originalVttContent }
     return () => video2?.removeEventListener('loadedmetadata', sync)
   }, [captionsOn, activeTrack, translatedUrl, originalUrl])
 
-  // Arrow key seek: ±10 seconds
+  // Arrow key seek: ±10 seconds — capture phase so we intercept before the
+  // native <video controls> handler, which otherwise seeks proportionally.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       const video = videoRef.current
       if (!video) return
-      if (e.key === 'ArrowRight') { e.preventDefault(); video.currentTime = Math.min(video.duration || 0, video.currentTime + 10) }
-      if (e.key === 'ArrowLeft')  { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10) }
+      if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); video.currentTime = Math.min(video.duration || 0, video.currentTime + 10) }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); e.stopPropagation(); video.currentTime = Math.max(0, video.currentTime - 10) }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
   }, [])
 
   return (

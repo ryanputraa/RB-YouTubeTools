@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, chmodSync, readdirSync, copyFileSync, renameSync
 import { writeFile } from 'fs/promises'
 import { app, net } from 'electron'
 import { tmpdir } from 'os'
-import type { VideoInfo, FfmpegStatus, CaptionTrack } from '@shared/types'
+import type { VideoInfo, FfmpegStatus, CaptionTrack, VideoQuality } from '@shared/types'
 
 const IS_WIN = process.platform === 'win32'
 const IS_MAC = process.platform === 'darwin'
@@ -458,13 +458,27 @@ async function tryDownloadCaptions(
   })
 }
 
+// ── Quality helpers ───────────────────────────────────────────────────────────
+
+function qualityToFormat(quality?: VideoQuality): string {
+  switch (quality) {
+    case '2160p': return 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best'
+    case '1080p': return 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best'
+    case '720p':  return 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best'
+    case '480p':  return 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best'
+    case '360p':  return 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best'
+    default:      return 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'
+  }
+}
+
 // ── Download Video ────────────────────────────────────────────────────────────
 
 export async function downloadVideo(
   url: string,
   outputDir: string,
   onProgress: (pct: number, msg: string) => void,
-  cookiesFile?: string
+  cookiesFile?: string,
+  quality?: VideoQuality
 ): Promise<string> {
   const { path: bin } = await resolveBinary()
 
@@ -472,7 +486,7 @@ export async function downloadVideo(
 
   const outputTemplate = join(outputDir, '%(title)s.%(ext)s')
   const args = [
-    '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
+    '-f', qualityToFormat(quality),
     '--merge-output-format', 'mp4',
     '--concurrent-fragments', '8',
     '--no-playlist',

@@ -1,13 +1,15 @@
 import React from 'react'
 import Logo from '../components/Logo'
 
+declare const __APP_VERSION__: string
+
 interface MenuScreenProps {
   onSelect: (tool: 'translator') => void
 }
 
 export default function MenuScreen({ onSelect }: MenuScreenProps): JSX.Element {
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8 space-y-10">
+    <div className="relative flex flex-col items-center justify-center h-full p-8 space-y-10">
       {/* Branding */}
       <div className="flex flex-col items-center gap-3">
         <Logo className="h-14 w-auto" />
@@ -45,6 +47,11 @@ export default function MenuScreen({ onSelect }: MenuScreenProps): JSX.Element {
           </div>
         </div>
       </div>
+
+      {/* Version badge — bottom right */}
+      <span className="absolute bottom-4 right-5 text-xs text-white/20 select-none">
+        v{__APP_VERSION__}
+      </span>
     </div>
   )
 }

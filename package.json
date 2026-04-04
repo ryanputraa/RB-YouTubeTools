@@ -1,9 +1,9 @@
 {
   "name": "rb-youtube-tools",
-  "version": "0.2.0-alpha",
+  "version": "0.3.0-alpha",
   "description": "RB YouTube Tools - Download and translate YouTube captions",
   "main": "out/main/index.js",
-  "homepage": ".",
+  "homepage": "https://github.com/ryanputraa/RB-YouTube-Tools",
   "author": "Ryan Budianto <ryanpbudianto@gmail.com>",
   "scripts": {
     "dev": "electron-vite dev",
@@ -17,32 +17,30 @@
   "build": {
     "appId": "com.rb.youtubetools",
     "productName": "RB YouTube Tools",
-    "files": [
-      "out/**/*"
-    ],
+    "copyright": "Copyright © 2026 Ryan Budianto",
+    "directories": { "buildResources": "build", "output": "dist" },
+    "files": ["out/**/*"],
+    "extraResources": [{ "from": "resources/", "to": ".", "filter": ["**/*"] }],
     "win": {
-      "icon": "build/icon.ico",
       "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
-          "target": "portable",
-          "arch": ["x64"]
-        }
-      ]
+        { "target": "squirrel", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "RB YouTube Tools",
-      "menuCategory": "RB YouTube Tools",
-      "runAfterFinish": true,
-      "perMachine": false,
-      "include": "build/uninstaller.nsh"
+    "squirrelWindows": {
+      "iconUrl": "https://raw.githubusercontent.com/ryanputraa/RB-YouTube-Tools/master/build/icon.ico",
+      "useAppIdAsId": true
+    },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "build/icons",
+      "category": "Utility"
     }
   },
   "dependencies": {

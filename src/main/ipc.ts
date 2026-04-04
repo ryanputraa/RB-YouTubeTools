@@ -18,7 +18,8 @@ import { parseSubtitleFile } from './services/captionParser'
 import { translateBlocks } from './services/translator'
 import { writeSrtAndVtt } from './services/srtWriter'
 import { saveHistoryEntry, loadHistory, deleteHistoryEntry, clearHistory } from './services/history'
-import type { JobOptions, JobProgressEvent, JobResult, YtdlpStatus, IpcError } from '@shared/types'
+import { loadSettings, saveSettings } from './services/settings'
+import type { JobOptions, JobProgressEvent, JobResult, YtdlpStatus, IpcError, AppSettings } from '@shared/types'
 
 export function registerAllIpcHandlers(): void {
   // ── get-file-server-port ─────────────────────────────────────────────────────
@@ -26,7 +27,8 @@ export function registerAllIpcHandlers(): void {
 
   // ── get-default-output-dir ───────────────────────────────────────────────────
   ipcMain.handle('get-default-output-dir', (): string => {
-    const dir = join(app.getPath('videos'), 'RB-YouTubeTools')
+    const settings = loadSettings()
+    const dir = settings.outputDir
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     return dir
   })
@@ -239,7 +241,8 @@ export function registerAllIpcHandlers(): void {
     try {
       const cookiesFile = join(app.getPath('userData'), 'youtube-cookies.txt')
       const cookies = existsSync(cookiesFile) ? cookiesFile : undefined
-      const videoPath = await downloadVideo(url, outputDir, emit, cookies)
+      const { videoQuality } = loadSettings()
+      const videoPath = await downloadVideo(url, outputDir, emit, cookies, videoQuality)
       return { videoPath }
     } catch (e) {
       return { error: true, message: (e as Error).message } as IpcError
@@ -259,11 +262,39 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('clear-history', () => clearHistory())
 
+  // ── settings ─────────────────────────────────────────────────────────────────
+  ipcMain.handle('get-settings', (): AppSettings => loadSettings())
+
+  ipcMain.handle('save-settings', (_event, settings: AppSettings) => {
+    if (settings.outputDir && !existsSync(settings.outputDir)) {
+      try { mkdirSync(settings.outputDir, { recursive: true }) } catch {}
+    }
+    saveSettings(settings)
+  })
+
+  ipcMain.handle('get-app-version', (): string => app.getVersion())
+
+  ipcMain.handle('uninstall-app', async () => {
+    // Open Windows Apps & Features so the user can trigger uninstall
+    await shell.openExternal('ms-settings:appsfeatures')
+  })
+
+  // ── clear-output-dir ─────────────────────────────────────────────────────────
+  // Deletes the entire output directory from disk and also wipes history,
+  // since history entries would point to non-existent paths.
+  ipcMain.handle('clear-output-dir', async () => {
+    const { outputDir } = loadSettings()
+    if (outputDir && existsSync(outputDir)) {
+      await rm(outputDir, { recursive: true, force: true })
+    }
+    clearHistory()
+  })
+
   // ── backfill-history ─────────────────────────────────────────────────────────
   // Scan the default output dir for folders that have VTT/SRT files but aren't
   // in history.json yet — so old translations show up automatically.
   ipcMain.handle('backfill-history', async (): Promise<{ added: number }> => {
-    const outputDir = join(app.getPath('videos'), 'RB-YouTubeTools')
+    const outputDir = loadSettings().outputDir
     if (!existsSync(outputDir)) return { added: 0 }
 
     const existing = loadHistory()
@@ -342,7 +373,7 @@ async function runJob(
   options: JobOptions,
   emit: (e: Omit<JobProgressEvent, 'jobId'>) => void
 ): Promise<void> {
-  const { url, targetLang, sourceLang, downloadVideo: shouldDownloadVideo, outputDir, cookiesBrowser, cookiesFile } = options
+  const { url, targetLang, sourceLang, downloadVideo: shouldDownloadVideo, videoQuality, outputDir, cookiesBrowser, cookiesFile } = options
 
   try {
     // Stage 1: Fetch video info to get a clean folder name
@@ -470,7 +501,7 @@ async function runJob(
           percent: pct >= 0 ? pct : undefined,
           status: 'running'
         })
-      })
+      }, undefined, videoQuality)
 
       emit({
         stage: 'download-video',
